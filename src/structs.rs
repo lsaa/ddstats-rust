@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GameData {
     pub player_id: i32,
     pub pb: f32,
@@ -58,8 +58,10 @@ impl GameData {
 }
 
 
-pub enum STATE {
+#[derive(Debug, PartialEq)]
+pub enum State {
     NotConnected,
+    Connecting,
     Playing,
     Replay,
     Menu,
