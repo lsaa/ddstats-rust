@@ -1,4 +1,7 @@
-use crate::structs::GameData;
+use crate::structs::{GameDataMembers, GameDataMembersRetrieval};
+use std::mem::transmute;
+use crate::app;
+use std::sync::atomic::{AtomicBool, AtomicI32};
 
 #[cfg(target_os = "linux")]
 use sysinfo::{ProcessExt, System, SystemExt};
@@ -9,11 +12,12 @@ use winapi;
 
 pub fn try_read_std_string_utf8(handle: process_memory::ProcessHandle, starting_offsets: Vec<usize>) -> Result<String, std::io::Error> {
     use process_memory::*;
-    let offset = DataMember::<u8>::new_offset(handle, starting_offsets);
-    let len_off = DataMember::<i32>::new_offset(handle, vec![offset.get_offset()? - 8]);
-    let len = len_off.read()? as usize;
-    let mut bytes = vec![0_u8; len];
-    handle.copy_address(offset.get_offset()?, &mut bytes)?;
+    let offset = handle.get_offset(&starting_offsets);
+    let offset_len = handle.get_offset(&starting_offsets)? - 8;
+    let mut len = [0_u8; 4];
+    handle.copy_address(offset_len, &mut len)?;
+    let mut bytes = vec![0_u8; unsafe {transmute::<[u8; 4], i32>(len)} as usize];
+    handle.copy_address(offset?, &mut bytes)?;
     String::from_utf8(bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
 
@@ -27,51 +31,49 @@ pub fn get_pid(process_name: &str) -> process_memory::Pid {
 }
 
 #[cfg(target_os = "linux")]
-pub fn fetch_stats(handle: process_memory::ProcessHandle) -> Result<GameData, std::io::Error> {
+pub fn fetch_stats(app: &mut app::App) -> Result<GameDataMembersRetrieval, std::io::Error> {
     use process_memory::*;
-    //let timer = DataMember::<f32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x214]); //Engine timer
-    let pb = DataMember::<f32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x3AC]); 
-    let timer = DataMember::<f32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x224]);
-    let gems_total = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x244]);
-    let enemies_killed = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x240]);
-    let enemies_alive = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x280]);
-    let daggers_fired = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x238]);
-    let daggers_hit = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x23C]);
-    let is_replay = DataMember::<bool>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x41D]);
-    let death_type = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x248]);
-    let is_alive = DataMember::<bool>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x228]);    
-    let player_id = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0xB0]);    
+    let handle = app.process_handle.unwrap();
+    let dm = GameDataMembers {
+        pb: DataMember::<f32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x3AC]),
+        timer: DataMember::<f32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x224]),
+        gems_total: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x244]),
+        enemies_killed: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x240]),
+        enemies_alive: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x280]),
+        daggers_fired: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x238]),
+        daggers_hit: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x23C]),
+        is_replay: DataMember::<bool>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x41D]),
+        death_type: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x248]),
+        is_alive: DataMember::<bool>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x228]),
+        player_id: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0xB0]),
+        replay_player_id: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0xB0]),
+        gems_upgrade: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0x2DC]),
+        homing: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0x2E8]),
+        is_dead: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0xE4]),
+    };
+    let levi_dead = DataMember::<i32>::new_offset(handle, vec![0x915a58]);
+
     let player_name = try_read_std_string_utf8(handle, vec![LINUX_GAME_STATS_ADDRESS,  0xC8]);
     let replay_player_name = try_read_std_string_utf8(handle, vec![LINUX_GAME_STATS_ADDRESS,  0x430]);
 
-    let gems = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0x2DC]);
-    let homing = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0x2E8]);
-    let is_dead = DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0xE4]); 
-
-    let data = GameData {
-        timer: timer.read()?,
-        pb: pb.read()?,
-        gems_total: gems_total.read()?,
-        gems_upgrade: gems.read()?,
-        is_dead: is_dead.read()?,
-        daggers_fired: daggers_fired.read()?,
-        daggers_hit: daggers_hit.read()?,
-        accuracy: daggers_hit.read()? as f32 / daggers_fired.read()? as f32,
-        player_id: player_id.read()?,
+    let data = GameDataMembersRetrieval {
+        timer: dm.timer.read()?,
+        pb: dm.pb.read()?,
+        gems_total: AtomicI32::new(dm.gems_total.read()?),
+        gems_upgrade: AtomicI32::new(dm.gems_upgrade.read()?),
+        is_dead: AtomicI32::new(dm.is_dead.read()?),
+        daggers_fired: AtomicI32::new(dm.daggers_fired.read()?),
+        daggers_hit: AtomicI32::new(dm.daggers_hit.read()?),
+        player_id: AtomicI32::new(dm.player_id.read()?),
         player_name: player_name?,
-        replay_player_id: 1,
+        replay_player_id: AtomicI32::new(1),
         replay_player_name: replay_player_name?,
-        is_alive: is_alive.read()?,
-        is_replay: is_replay.read()?,
-        homing: homing.read()?,
-        homing_max: 11031,
-        homing_max_time: 0.0,
-        death_type: death_type.read()?,
-        enemies_alive: enemies_alive.read()?,
-        enemies_killed: enemies_killed.read()?,
-        level_2_time: 0.0,
-        level_3_time: 0.0,
-        level_4_time: 0.0,
+        is_alive: AtomicBool::new(dm.is_alive.read()?),
+        is_replay: AtomicBool::new(dm.is_replay.read()?),
+        homing: AtomicI32::new(dm.homing.read()?),
+        death_type: AtomicI32::new(dm.death_type.read()?),
+        enemies_alive: AtomicI32::new(dm.enemies_alive.read()?),
+        enemies_killed: AtomicI32::new(dm.enemies_killed.read()?),
     };
 
     return Ok(data);
