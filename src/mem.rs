@@ -51,7 +51,7 @@ pub fn fetch_stats(app: &mut app::App) -> Result<GameDataMembersRetrieval, std::
         homing: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0x2E8]),
         is_dead: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0xE4]),
     };
-    let levi_dead = DataMember::<i32>::new_offset(handle, vec![0x915a58]);
+    //let levi_dead = DataMember::<i32>::new_offset(handle, vec![0x915a58]);
 
     let player_name = try_read_std_string_utf8(handle, vec![LINUX_GAME_STATS_ADDRESS,  0xC8]);
     let replay_player_name = try_read_std_string_utf8(handle, vec![LINUX_GAME_STATS_ADDRESS,  0x430]);

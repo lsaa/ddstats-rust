@@ -1,6 +1,6 @@
 use process_memory::DataMember;
 use crate::consts;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicI32};
 #[derive(Debug)]
 pub struct GameData {
     pub last_fetch_data: Option<GameDataMembersRetrieval>,

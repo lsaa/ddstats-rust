@@ -16,16 +16,6 @@ pub struct App {
 unsafe impl Send for App {}
 
 impl App {
-    pub fn game_tick(&mut self)
-    {
-        if self.game_pid.is_none() {
-            println!("OWOWOW");
-            self.game_pid = Some(Pid::from(123141));
-        } else {
-            println!("EEE");
-        }
-    }
-
     pub fn tick(&mut self) {
         if self.process_handle.is_some() && self.is_handle_valid() {
             if !self.handle_connect_test() {return;}

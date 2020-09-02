@@ -3,7 +3,7 @@ use crate::consts;
 use std::sync::atomic::{Ordering};
 
 pub fn cum_data(d : &mut GameData) {
-    println!("\n\n\n\n\n\n\n\n\n\n\n\n\n");
+    println!("\n\n\n\n\n\n\n");
 
     if d.last_fetch_data.as_mut().is_none() {return;}
     let data = d.last_fetch_data.as_ref().unwrap();
@@ -32,7 +32,7 @@ pub fn cum_data(d : &mut GameData) {
     }
 
     println!("ACCURACY:\t{:.4}", d.accuracy);
-    println!("SLICES SIZE {}", d.data_slices.timer.len());
+    //println!("SLICES SIZE {}", d.data_slices.timer.len());
     println!("GEMS:\t\t{}", data.gems_total.load(Ordering::SeqCst));
     println!("HOMING:\t\t{} [MAX: {} AT {:.4}]", data.homing.load(Ordering::SeqCst), d.homing_max.load(Ordering::SeqCst), d.homing_max_time);
     println!("L2: {:.4} L3: {:.4} L4: {:.4}", d.level_2_time, d.level_3_time, d.level_4_time);
