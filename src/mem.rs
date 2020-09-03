@@ -27,14 +27,16 @@ pub fn get_pid(process_name: &str) -> process_memory::Pid {
     for process in s.get_process_by_name(process_name) {
         return process.pid();
     }
+    std::thread::sleep(std::time::Duration::from_secs(5));
     return 0;
 }
 
 #[cfg(target_os = "linux")]
-pub fn fetch_stats(app: &mut app::App) -> Result<GameDataMembersRetrieval, std::io::Error> {
+pub fn setup_data_members(app : &mut app::App) {
     use process_memory::*;
     let handle = app.process_handle.unwrap();
-    let dm = GameDataMembers {
+
+    app.data_members = Some(GameDataMembers {
         pb: DataMember::<f32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x3AC]),
         timer: DataMember::<f32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x224]),
         gems_total: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_STATS_ADDRESS, 0x244]),
@@ -50,11 +52,22 @@ pub fn fetch_stats(app: &mut app::App) -> Result<GameDataMembersRetrieval, std::
         gems_upgrade: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0x2DC]),
         homing: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0x2E8]),
         is_dead: DataMember::<i32>::new_offset(handle, vec![LINUX_GAME_ADDRESS, 0, 0xE4]),
-    };
+    });
+}
+
+#[cfg(target_os = "linux")]
+pub fn fetch_stats(app: &mut app::App) -> Result<GameDataMembersRetrieval, std::io::Error> {
+    use process_memory::*;
+    let handle = app.process_handle.unwrap();
+    if app.data_members.as_ref().is_none() {
+        setup_data_members(app);
+    }
+
     //let levi_dead = DataMember::<i32>::new_offset(handle, vec![0x915a58]);
 
     let player_name = try_read_std_string_utf8(handle, vec![LINUX_GAME_STATS_ADDRESS,  0xC8]);
     let replay_player_name = try_read_std_string_utf8(handle, vec![LINUX_GAME_STATS_ADDRESS,  0x430]);
+    let dm = app.data_members.as_ref().unwrap();
 
     let data = GameDataMembersRetrieval {
         timer: dm.timer.read()?,

@@ -5,12 +5,15 @@ use crate::consts;
 use crate::utils;
 use std::sync::atomic::{AtomicI32, Ordering};
 use crate::structs::State;
+use crate::structs::GameDataMembers;
+
 #[derive(Debug)]
 pub struct App {
     pub state: State,
     pub data: Option<GameData>,
     pub game_pid: Option<Pid>,
     pub process_handle: Option<ProcessHandle>,
+    pub data_members: Option<GameDataMembers>
 }
 
 unsafe impl Send for App {}
@@ -197,6 +200,7 @@ impl App {
         if pid != 0 {
             self.game_pid = Some(pid);
             self.process_handle = Some(pid.try_into_process_handle().unwrap());
+            mem::setup_data_members(self);
         }
     }
 

@@ -21,6 +21,7 @@ fn main() {
         data: None,
         game_pid: None,
         process_handle: None,
+        data_members: None
     }));
 
     //Game Capture - 36 times a second
@@ -50,6 +51,7 @@ fn main() {
 
     loop {
         scheduler.execute_pending();
+        std::thread::sleep(Duration::from_nanos(50000));
     }
 }
 
