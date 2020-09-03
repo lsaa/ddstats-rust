@@ -57,6 +57,8 @@ impl GameData {
         self.level_4_time, self.homing_max, self.homing_max_time,
         self.last_fetch_data.as_ref().unwrap().enemies_alive,
         self.last_fetch_data.as_ref().unwrap().enemies_killed);
+
+        log::info!("\n\nRUN DUMP\n\n{:?}", self);
     }
 }
 
