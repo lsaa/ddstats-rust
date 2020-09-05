@@ -1,6 +1,6 @@
 use crate::structs::GameData;
 use crate::consts;
-use std::sync::atomic::{Ordering};
+use std::sync::atomic::{AtomicI32, Ordering};
 
 pub fn cum_data(d : &mut GameData) {
     println!("\n\n\n\n\n\n\n");
@@ -41,4 +41,11 @@ pub fn cum_data(d : &mut GameData) {
         println!("DEATH TYPE: {}", consts::DEATH_TYPES[data.death_type.load(Ordering::SeqCst) as usize]);
     }
 
+}
+
+pub fn vec_i32_from_atomic_vec(vec_atomic: &Vec<AtomicI32>) -> Vec<i32> {
+    return vec_atomic
+            .iter()
+            .map(|x| x.load(Ordering::SeqCst))
+            .collect();
 }

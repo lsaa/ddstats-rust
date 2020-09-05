@@ -2,6 +2,8 @@ pub const DEATH_STATUS : i32 = 7;
 
 pub const V3_SURVIVAL_HASH : &str = "569fead87abf4d30fdee4231a6398051";
 
+pub const VERSION : &str = "0.4.6";
+
 //Linux
 pub const DD_PROCESS_LINUX : &str = "devildaggers";
 pub const LINUX_BASE_ADDRESS : usize = 0x00400000;

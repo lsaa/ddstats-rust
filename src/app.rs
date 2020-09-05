@@ -1,4 +1,4 @@
-use crate::structs::{GameData, GameDataMembersRetrieval, DataSlices};
+use crate::structs::{GameData, GameDataMembersRetrieval, DataSlices, GameRecording};
 use process_memory::{ProcessHandle, Pid, TryIntoProcessHandle, CopyAddress};
 use crate::mem;
 use crate::consts;
@@ -13,7 +13,8 @@ pub struct App {
     pub data: Option<GameData>,
     pub game_pid: Option<Pid>,
     pub process_handle: Option<ProcessHandle>,
-    pub data_members: Option<GameDataMembers>
+    pub data_members: Option<GameDataMembers>,
+    pub survival_file_path: String,
 }
 
 unsafe impl Send for App {}
@@ -32,9 +33,15 @@ impl App {
         }
     }
 
+    fn get_survival_hash(&self) -> String {
+        let data = std::fs::read(self.survival_file_path.clone()).unwrap();
+        let digest = md5::compute(data);
+        return format!("{:x}", digest);
+    }
+
     fn handle_connect_test(&mut self) -> bool{
         if self.is_game_ready() && self.state == State::Connecting {
-            self.state = State::Menu;
+            self.resolve_status();
             log::info!("Connected to the game")
         } else {
             if self.state == State::NotConnected {
@@ -63,10 +70,51 @@ impl App {
                 last_recording: -1.0,
                 enemies_alive_max_per_second: AtomicI32::new(0),
                 homing_max_per_second: AtomicI32::new(0),
+                enemies_alive_max: AtomicI32::new(0),
+                enemies_alive_time: 0.0,
             });
         } else {
             self.process_data(data);
         }
+    }
+
+    fn submit_run(&mut self) {
+        let data = self.data.as_ref().unwrap();
+        let last_data = data.last_fetch_data.as_ref().unwrap();
+        let hash = self.get_survival_hash();
+
+        let request = GameRecording {
+            player_id: last_data.player_id.load(std::sync::atomic::Ordering::SeqCst),
+            player_name: last_data.player_name.clone(),
+            granularity: data.data_slices.granularity.load(std::sync::atomic::Ordering::SeqCst),
+            in_game_timer: last_data.timer,
+            in_game_timer_vector: data.data_slices.timer.clone(),
+            gems: last_data.gems_total.load(std::sync::atomic::Ordering::SeqCst),
+            gems_vector: utils::vec_i32_from_atomic_vec(data.data_slices.total_gems.as_ref()),
+            level_two_time: data.level_2_time,
+            level_three_time: data.level_3_time,
+            level_four_time: data.level_4_time,
+            homing_daggers: data.data_slices.homing[data.data_slices.homing.len() - 1 as usize].load(std::sync::atomic::Ordering::SeqCst),
+            homing_daggers_max: data.homing_max.load(std::sync::atomic::Ordering::SeqCst),
+            homing_daggers_vector: utils::vec_i32_from_atomic_vec(data.data_slices.homing.as_ref()),
+            homing_daggers_max_time: data.homing_max_time,
+            daggers_fired: last_data.daggers_fired.load(std::sync::atomic::Ordering::SeqCst),
+            daggers_fired_vector: utils::vec_i32_from_atomic_vec(data.data_slices.daggers_fired.as_ref()),
+            daggers_hit: last_data.daggers_hit.load(std::sync::atomic::Ordering::SeqCst),
+            daggers_hit_vector: utils::vec_i32_from_atomic_vec(data.data_slices.daggers_hit.as_ref()),
+            enemies_alive: last_data.enemies_alive.load(std::sync::atomic::Ordering::SeqCst),
+            enemies_alive_vector: utils::vec_i32_from_atomic_vec(data.data_slices.enemies_alive.as_ref()),
+            enemies_killed: last_data.enemies_killed.load(std::sync::atomic::Ordering::SeqCst),
+            enemies_killed_vector: utils::vec_i32_from_atomic_vec(data.data_slices.enemies_killed.as_ref()),
+            death_type: last_data.death_type.load(std::sync::atomic::Ordering::SeqCst),
+            replay_player_id: 0,
+            version: consts::VERSION.to_string(),
+            survival_hash: hash,
+            enemies_alive_max: data.enemies_alive_max.load(std::sync::atomic::Ordering::SeqCst),
+            enemies_alive_max_time: data.enemies_alive_time,
+        };
+
+        crate::net::submit_run(request);
     }
 
     fn process_data(&mut self, data: GameDataMembersRetrieval) {
@@ -81,6 +129,7 @@ impl App {
             if current_data.data_slices.timer.len() != 0 {
                 log::info!("Submitting Run...");
                 current_data.log_run();
+                self.submit_run();
             }
             self.data = None;
             return;
@@ -183,6 +232,7 @@ impl App {
         self.state = State::NotConnected;
         self.game_pid = None;
         self.process_handle = None;
+        self.survival_file_path = String::new();
         return false;
     }
 
@@ -196,7 +246,16 @@ impl App {
 
     #[cfg(target_os = "linux")]
     pub fn connect_to_game(&mut self) {
-        let pid = mem::get_pid(consts::DD_PROCESS_LINUX);
+        let proc = mem::get_proc(consts::DD_PROCESS_LINUX);
+        let pid = proc.1;
+        let exe = proc.0;
+        println!("{}", exe);
+        if !exe.is_empty() {
+            let mut exe = String::from(&exe[0.. (exe.len() - 12) ]);
+            exe.push_str("dd/survival");
+            self.survival_file_path = exe;    
+        }
+
         if pid != 0 {
             self.game_pid = Some(pid);
             self.process_handle = Some(pid.try_into_process_handle().unwrap());

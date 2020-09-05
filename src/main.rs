@@ -5,6 +5,9 @@ pub mod consts;
 pub mod app;
 pub mod utils;
 pub mod timing;
+pub mod config;
+pub mod socket;
+pub mod net;
 
 use simple_logging::{log_to_file};
 use std::time::Duration;
@@ -13,7 +16,7 @@ use std::sync::{Arc, Mutex};
 fn main() {
     let _ = log_to_file("ddstats-rust.log", log::LevelFilter::Info);
     log::info!("Initializing App...");
-
+    let _ = net::get_motd();
     let mut scheduler = timing::Scheduler::new();
 
     let app = Arc::new(Mutex::new(app::App {
@@ -21,7 +24,8 @@ fn main() {
         data: None,
         game_pid: None,
         process_handle: None,
-        data_members: None
+        data_members: None,
+        survival_file_path: String::new(),
     }));
 
     //Game Capture - 36 times a second

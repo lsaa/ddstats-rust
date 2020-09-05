@@ -4,7 +4,7 @@ use crate::app;
 use std::sync::atomic::{AtomicBool, AtomicI32};
 
 #[cfg(target_os = "linux")]
-use sysinfo::{ProcessExt, System, SystemExt};
+use sysinfo::{System, SystemExt, ProcessExt};
 use crate::consts::{LINUX_GAME_ADDRESS, LINUX_GAME_STATS_ADDRESS};
 
 #[cfg(target_os = "windows")]
@@ -22,13 +22,13 @@ pub fn try_read_std_string_utf8(handle: process_memory::ProcessHandle, starting_
 }
 
 #[cfg(target_os = "linux")]
-pub fn get_pid(process_name: &str) -> process_memory::Pid {
+pub fn get_proc(process_name: &str) -> (String, process_memory::Pid) {
     let s = System::new_all();
     for process in s.get_process_by_name(process_name) {
-        return process.pid();
+        return (String::from(process.exe().to_str().unwrap()), process.pid());
     }
     std::thread::sleep(std::time::Duration::from_secs(5));
-    return 0;
+    return (String::new(), 0);
 }
 
 #[cfg(target_os = "linux")]
