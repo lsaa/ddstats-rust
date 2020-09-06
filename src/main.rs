@@ -26,6 +26,7 @@ fn main() {
         process_handle: None,
         data_members: None,
         survival_file_path: String::new(),
+        can_submit_run: true,
     }));
 
     //Game Capture - 36 times a second

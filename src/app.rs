@@ -15,6 +15,7 @@ pub struct App {
     pub process_handle: Option<ProcessHandle>,
     pub data_members: Option<GameDataMembers>,
     pub survival_file_path: String,
+    pub can_submit_run: bool,
 }
 
 unsafe impl Send for App {}
@@ -71,7 +72,7 @@ impl App {
                 enemies_alive_max_per_second: AtomicI32::new(0),
                 homing_max_per_second: AtomicI32::new(0),
                 enemies_alive_max: AtomicI32::new(0),
-                enemies_alive_time: 0.0,
+                enemies_alive_max_time: 0.0,
             });
         } else {
             self.process_data(data);
@@ -111,7 +112,7 @@ impl App {
             version: consts::VERSION.to_string(),
             survival_hash: hash,
             enemies_alive_max: data.enemies_alive_max.load(std::sync::atomic::Ordering::SeqCst),
-            enemies_alive_max_time: data.enemies_alive_time,
+            enemies_alive_max_time: data.enemies_alive_max_time,
         };
 
         crate::net::submit_run(request);
@@ -123,16 +124,21 @@ impl App {
         let mut current_data = self.data.as_mut().unwrap();
         if current_data.last_fetch_data.as_ref().is_none() {println!("{:?}", self.game_pid) ;return;}
         let last_data = current_data.last_fetch_data.as_ref().unwrap();
-        //let data = current_data.last_fetch_data.as_ref().unwrap();
 
         if data.timer < last_data.timer {
+            self.can_submit_run = true;
+            current_data.last_fetch_data = None;
+            return;
+        }
+
+        if data.timer == last_data.timer && self.can_submit_run && !data.is_alive.load(Ordering::SeqCst) {
             if current_data.data_slices.timer.len() != 0 {
                 log::info!("Submitting Run...");
                 current_data.log_run();
                 self.submit_run();
+                self.can_submit_run = false;
+                return;
             }
-            self.data = None;
-            return;
         }
 
 
@@ -145,6 +151,11 @@ impl App {
         if data.homing.load(Ordering::SeqCst) > current_data.homing_max.load(Ordering::SeqCst) {
             current_data.homing_max.store(data.homing.load(Ordering::SeqCst), Ordering::SeqCst);
             current_data.homing_max_time = data.timer;
+        }
+
+        if data.enemies_alive.load(Ordering::SeqCst) > current_data.enemies_alive_max.load(Ordering::SeqCst) {
+            current_data.enemies_alive_max.store(data.enemies_alive.load(Ordering::SeqCst), Ordering::SeqCst);
+            current_data.enemies_alive_max_time = data.timer;
         }
 
         if data.gems_upgrade.load(Ordering::SeqCst) >= 10 && current_data.level_2_time == 0.0 {
@@ -249,10 +260,11 @@ impl App {
         let proc = mem::get_proc(consts::DD_PROCESS_LINUX);
         let pid = proc.1;
         let exe = proc.0;
-        println!("{}", exe);
         if !exe.is_empty() {
-            let mut exe = String::from(&exe[0.. (exe.len() - 12) ]);
-            exe.push_str("dd/survival");
+            let exe = String::from(&exe);
+            let exe : Vec<&str> = exe.split("/").collect();
+            let mut exe = exe[0..(exe.len() - 1)].join("/");
+            exe.push_str("/dd/survival");
             self.survival_file_path = exe;    
         }
 

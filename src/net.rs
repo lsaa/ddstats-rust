@@ -28,7 +28,7 @@ pub fn submit_run(recording: GameRecording) {
     let url = cfg.host + "/api/submit_game";
     let request_body = serde_json::to_vec(&recording).unwrap();
     
-    if !cfg.offline && recording.replay_player_id != 0 {
+    if !cfg.offline && recording.replay_player_id == 0 {
         let mut res = isahc::prelude::Request::post(url)
                 .header("content-type", "application/json")
                 .body(request_body).unwrap().send().unwrap();

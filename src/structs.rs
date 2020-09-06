@@ -17,7 +17,7 @@ pub struct GameData {
     pub homing_max: AtomicI32,
     pub homing_max_time: f32,
     pub enemies_alive_max: AtomicI32,
-    pub enemies_alive_time: f32,
+    pub enemies_alive_max_time: f32,
     pub enemies_alive_max_per_second: AtomicI32,
     pub homing_max_per_second: AtomicI32,
 }
@@ -39,7 +39,7 @@ impl GameData {
             enemies_alive_max_per_second: AtomicI32::new(0),
             last_fetch_data: None,
             enemies_alive_max: AtomicI32::new(0),
-            enemies_alive_time: 0.0,
+            enemies_alive_max_time: 0.0,
         }
     }
 
