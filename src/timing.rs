@@ -27,7 +27,6 @@ impl Scheduler {
     } 
 }
 
-
 pub struct TemporalTask { 
     pub interval : Duration,
     pub execute_func: fn(AMA),
@@ -38,8 +37,8 @@ pub struct TemporalTask {
 unsafe impl Send for TemporalTask {}
 
 impl TemporalTask {
-    pub fn new(interval: Duration, execute_func: fn(AMA), ama: AMA) -> Self {
-        Self { interval, execute_func, last_execution: Instant::now(), ama } 
+    pub fn new(interval: Duration, execute_func: fn(AMA), args: AMA) -> Self {
+        Self { interval, execute_func, last_execution: Instant::now(), ama: args } 
     }
 }
 

@@ -56,24 +56,29 @@ impl App {
         return true;
     }
 
+    fn reset_gamedata(&mut self) {
+        log::info!("Created GameData");
+        self.data = Some(GameData {
+            last_fetch_data: None,
+            data_slices: DataSlices::new(),
+            homing_max: AtomicI32::new(0),
+            homing_max_time: 0.0,
+            accuracy: 0.0,
+            level_2_time: 0.0,
+            level_3_time: 0.0,
+            level_4_time: 0.0,
+            last_recording: -1.0,
+            enemies_alive_max_per_second: AtomicI32::new(0),
+            homing_max_per_second: AtomicI32::new(0),
+            enemies_alive_max: AtomicI32::new(0),
+            enemies_alive_max_time: 0.0,
+        });
+    }
+
     fn preprocess_data(&mut self, data: GameDataMembersRetrieval) {
         if self.data.as_ref().is_none() {
-            log::info!("Created GameData");
-            self.data = Some(GameData {
-                last_fetch_data: Some(data),
-                data_slices: DataSlices::new(),
-                homing_max: AtomicI32::new(0),
-                homing_max_time: 0.0,
-                accuracy: 0.0,
-                level_2_time: 0.0,
-                level_3_time: 0.0,
-                level_4_time: 0.0,
-                last_recording: -1.0,
-                enemies_alive_max_per_second: AtomicI32::new(0),
-                homing_max_per_second: AtomicI32::new(0),
-                enemies_alive_max: AtomicI32::new(0),
-                enemies_alive_max_time: 0.0,
-            });
+            self.reset_gamedata();
+            self.data.as_mut().unwrap().last_fetch_data = Some(data);
         } else {
             self.process_data(data);
         }
@@ -122,12 +127,13 @@ impl App {
         self.resolve_status();
 
         let mut current_data = self.data.as_mut().unwrap();
-        if current_data.last_fetch_data.as_ref().is_none() {println!("{:?}", self.game_pid) ;return;}
+        if current_data.last_fetch_data.as_ref().is_none() {log::info!("no data :(");return;}
         let last_data = current_data.last_fetch_data.as_ref().unwrap();
 
         if data.timer < last_data.timer {
             self.can_submit_run = true;
-            current_data.last_fetch_data = None;
+            self.reset_gamedata();
+            self.data.as_mut().unwrap().last_fetch_data = Some(data);
             return;
         }
 
