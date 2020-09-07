@@ -1,7 +1,9 @@
+use core::sync::atomic::Ordering::SeqCst;
 use process_memory::DataMember;
 //use crate::consts;
-use std::sync::atomic::{AtomicBool, AtomicI32};
+use std::sync::{MutexGuard, atomic::{AtomicBool, AtomicI32}};
 use serde_derive::{Serialize, Deserialize};
+use crate::app::App;
 
 #[derive(Debug)]
 pub struct GameData {
@@ -50,7 +52,7 @@ impl GameData {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum State {
     NotConnected,
     Connecting,
@@ -195,4 +197,85 @@ pub struct GameRecording {
     pub replay_player_id: i32,
     pub version: String,
     pub survival_hash: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SioVariables {
+    pub status: i32,
+    #[serde(rename(serialize = "playerID"))]
+    pub player_id: i32,
+    pub timer: f32,
+    pub total_gems: i32,
+    pub level2time: f32,
+    pub level3time: f32,
+    pub level4time: f32,
+    pub homing: i32,
+    pub daggers_fired: i32,
+    pub daggers_hit: i32,
+    pub enemies_alive: i32,
+    pub enemies_killed: i32,
+    pub death_type: i32,
+    pub is_replay: bool,
+    pub notify_player_best: bool,
+    pub notify_above_1000: bool
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SioStatus {
+    Disconnected = 0,
+    Connecting = 1,
+    Connected = 2,
+    LoggedIn = 3,
+    Timeout = 4
+}
+
+#[derive(Debug)]
+pub struct AppDataExtraction {
+    pub sio_variables: SioVariables,
+    pub homing_max: i32,
+    pub homing_max_time: f32,
+    pub accuracy: f32,
+    pub pb: f32,
+    pub state: State,
+    pub player_name: String,
+    pub logs: Vec<String>,
+} 
+
+impl AppDataExtraction {
+    pub fn from_app(data: &MutexGuard<App>) -> Self {
+        let ad = data.data.as_ref().unwrap();
+        let last_data = ad.last_fetch_data.as_ref().unwrap();
+        let homing = if !ad.data_slices.homing.is_empty() 
+                { ad.data_slices.homing[ad.data_slices.homing.len() - 1].load(SeqCst) } else 
+                { last_data.homing.load(SeqCst) };
+
+        AppDataExtraction {
+            state: data.state.clone(),
+            player_name: last_data.player_name.clone(),
+            logs: data.logs.clone(),
+            pb: last_data.pb,
+            homing_max_time: ad.homing_max_time,
+            homing_max: ad.homing_max.load(SeqCst),
+            accuracy: ad.accuracy,
+            sio_variables: SioVariables {
+                status: SioStatus::Disconnected as i32,
+                level2time: ad.level_2_time,
+                level3time: ad.level_3_time,
+                level4time: ad.level_4_time,
+                timer: last_data.timer,
+                is_replay: last_data.is_replay.load(SeqCst),
+                notify_above_1000: true,
+                notify_player_best: true,
+                daggers_fired: last_data.daggers_fired.load(SeqCst),
+                daggers_hit: last_data.daggers_hit.load(SeqCst),
+                enemies_alive: last_data.enemies_alive.load(SeqCst),
+                enemies_killed: last_data.enemies_killed.load(SeqCst),
+                homing,
+                player_id: last_data.player_id.load(SeqCst),
+                death_type: last_data.death_type.load(SeqCst),
+                total_gems: last_data.gems_total.load(SeqCst),
+            }
+        }
+    }
 }

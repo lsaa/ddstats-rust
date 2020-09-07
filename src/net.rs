@@ -43,5 +43,4 @@ pub fn submit_run(recording: GameRecording) {
     } else {
         log::info!("\n\n\n NET SUBMISSION: \n {:#?}", recording);
     }
-
 }

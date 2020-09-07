@@ -57,6 +57,6 @@ impl ::std::default::Default for DDStatsRustConfig {
 }
 
 pub fn get_config() -> Result<DDStatsRustConfig, confy::ConfyError> {
-    let cfg = confy::load_path("./ddstats-rust.toml")?;
+    let cfg = confy::load_path("./config.toml")?;
     Ok(cfg)
 }

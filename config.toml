@@ -1,5 +1,5 @@
 host = 'https://ddstats.com'
-offline = false
+offline = true
 auto_clipboard = true
 
 [stream]

@@ -16,6 +16,8 @@ pub struct App {
     pub data_members: Option<GameDataMembers>,
     pub survival_file_path: String,
     pub can_submit_run: bool,
+    pub old_ui: bool,
+    pub logs: Vec<String>,
 }
 
 unsafe impl Send for App {}
@@ -43,11 +45,13 @@ impl App {
     fn handle_connect_test(&mut self) -> bool{
         if self.is_game_ready() && self.state == State::Connecting {
             self.resolve_status();
-            log::info!("Connected to the game")
+            log::info!("Connected to the game");
+            self.logs.push(String::from("Connected to the game"));
         } else {
             if self.state == State::NotConnected {
                 self.state = State::Connecting;
                 log::info!("Game found, connecting...");
+                self.logs.push(String::from("Connecting to the Game..."));
             }
             if self.state == State::Connecting {
                 return false;
@@ -58,6 +62,7 @@ impl App {
 
     fn reset_gamedata(&mut self) {
         log::info!("Created GameData");
+        self.logs.push(String::from("Created new Game Data"));
         self.data = Some(GameData {
             last_fetch_data: None,
             data_slices: DataSlices::new(),
@@ -140,6 +145,7 @@ impl App {
         if data.timer == last_data.timer && self.can_submit_run && !data.is_alive.load(Ordering::SeqCst) {
             if current_data.data_slices.timer.len() != 0 {
                 log::info!("Submitting Run...");
+                self.logs.push(String::from("Submitting Run..."));
                 current_data.log_run();
                 self.submit_run();
                 self.can_submit_run = false;
@@ -195,7 +201,7 @@ impl App {
         }
 
         current_data.last_fetch_data = Some(data);
-        utils::cum_data(current_data);
+        if self.old_ui { utils::cum_data(current_data); }
     }
 
     fn resolve_status(&mut self) {
@@ -244,8 +250,9 @@ impl App {
     }
 
     fn game_disconnected(&mut self, _: std::io::Error) -> bool {
-        println!("Game Disconnected");
+        //println!("Game Disconnected");
         log::info!("Game Disconnected");
+        self.logs.push(String::from("Game Disconnected"));
         self.state = State::NotConnected;
         self.game_pid = None;
         self.process_handle = None;

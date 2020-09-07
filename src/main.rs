@@ -9,6 +9,7 @@ pub mod timing;
 pub mod ui;
 pub mod utils;
 
+use crate::structs::AppDataExtraction;
 use simple_logging::log_to_file;
 use std::sync::{Arc, Mutex};
 use std::{time::Duration};
@@ -17,7 +18,14 @@ fn main() {
     let _ = log_to_file("ddstats-rust.log", log::LevelFilter::Info);
     log::info!("Initializing App...");
     let _ = net::get_motd();
+    let mut old_ui = false;
+    for argument in std::env::args() {
+        if argument == "--old-ui" {
+            old_ui = true;
+        }
+    }
     let mut scheduler = timing::Scheduler::new();
+    if !old_ui { ui::setup(); }
 
     let app = Arc::new(Mutex::new(app::App {
         state: structs::State::NotConnected,
@@ -27,6 +35,8 @@ fn main() {
         data_members: None,
         survival_file_path: String::new(),
         can_submit_run: true,
+        old_ui,
+        logs: vec![],
     }));
 
     let cap = app.clone();
@@ -65,7 +75,12 @@ fn socket_ui(args: AMA) {
     std::thread::spawn(move || {
         let lock = args.try_lock();
         if lock.is_ok() {
-            //let _ = ui::draw();
+            let data = lock.as_ref().unwrap();
+            let extraction = AppDataExtraction::from_app(data);
+            drop(data); // free App for the other threads
+            unsafe { if ui::TERMINAL.is_some() {
+                let _ = ui::draw(&extraction);
+            }}
         }
     });
 }
