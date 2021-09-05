@@ -1,5 +1,1 @@
 /target
-Cargo.lock
-ddstats-rust.log
-perf.*
-flamegraph.*

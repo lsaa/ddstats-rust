@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package gamesubmission;
+
+message ClientStartRequest {
+ string version = 1;
+}
+
+message ClientStartReply {
+ string motd = 1;
+ int32 version = 2;
+}
+
+message StatsFrame {
+  int32 gems_collected = 1;
+  int32 kills = 2;
+  int32 daggers_fired = 3;
+  int32 daggers_hit = 4;
+  int32 enemies_alive = 5;
+  int32 level_gems = 6;
+  int32 homing_daggers = 7;
+  int32 gems_despawned = 8;
+  int32 gems_eaten = 9;
+  int32 gems_total = 10;
+  int32 daggers_eaten = 11;
+  repeated int32 per_enemy_alive_count = 12;
+  repeated int32 per_enemy_kill_count = 13;
+}
+
+message SubmitGameRequest {
+  string version = 1;
+  int32 player_id = 2;
+  string player_name = 3;
+  string level_hash_md5 = 4;
+  float time_lvl2 = 5;
+  float time_lvl3 = 6;
+  float time_lvl4 = 7;
+  float time_levi_down = 8;
+  float time_orb_down = 9;
+  int32 enemies_alive_max = 10;
+  float enemies_alive_max_time = 11;
+  int32 homing_daggers_max = 12;
+  float homing_daggers_max_time = 13;
+  int32 death_type = 14;
+  bool is_replay = 15;
+  int32 replay_player_id = 16;
+  repeated StatsFrame frames = 17;
+}
+
+message SubmitGameReply {
+  uint32 res = 1;
+}
+
+service GameRecorder {
+ rpc ClientStart(ClientStartRequest) returns (ClientStartReply);
+ rpc SubmitGame(SubmitGameRequest) returns (SubmitGameReply);
+}
