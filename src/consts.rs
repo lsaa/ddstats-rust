@@ -1,11 +1,14 @@
-pub const DEATH_STATUS : i32 = 7;
+//
+// consts
+//
 
-pub const V3_SURVIVAL_HASH : &str = "569fead87abf4d30fdee4231a6398051";
+pub const DEATH_STATUS: i32 = 7;
 
-pub const VERSION : &str = "0.4.6";
+pub const V3_SURVIVAL_HASH: &str = "569fead87abf4d30fdee4231a6398051";
 
-pub const LOGO: &str = 
-"███████████████████████████████████████████████████████████████████████
+pub const VERSION: &str = "0.6.8";
+
+pub const LOGO: &str = "███████████████████████████████████████████████████████████████████████
 █ @@@@@@@   @@@@@@@    @@@@@@   @@@@@@@   @@@@@@   @@@@@@@   @@@@@@@  █
 █ @@@@@@@@  @@@@@@@@  @@@@@@@   @@@@@@@  @@@@@@@@  @@@@@@@  @@@@@@@   █
 █ @@!  @@@  @@!  @@@  !@@         @@!    @@!  @@@    @@!    !@@       █
@@ -18,27 +21,37 @@ pub const LOGO: &str =
 █ :: :  :   :: :  :   :: : :       :      :   : :     :     :::: rust █
 ███████████████████████████████████████████████████████████████████████";
 
-//Linux
-pub const DD_PROCESS_LINUX : &str = "devildaggers";
-pub const LINUX_BASE_ADDRESS : usize = 0x00400000;
-pub const LINUX_GAME_STATS_ADDRESS : usize = LINUX_BASE_ADDRESS + 0x00500AF8;
-pub const LINUX_GAME_ADDRESS : usize = LINUX_BASE_ADDRESS + 0x00515730;
+pub const LOGO_NEW: &str = "
+████████▄  ████████▄     ▄████████     ███        ▄████████     ███        ▄████████
+███   ▀███ ███   ▀███   ███    ███ ▀█████████▄   ███    ███ ▀█████████▄   ███    ███
+███    ███ ███    ███   ███    █▀     ▀███▀▀██   ███    ███    ▀███▀▀██   ███    █▀ㅤ
+███    ███ ███    ███   ███            ███   ▀   ███    ███     ███   ▀   ███ㅤㅤㅤㅤ
+███    ███ ███    ███ ▀███████████     ███     ▀███████████     ███     ▀███████████
+███    ███ ███    ███          ███     ███       ███    ███     ███              ███
+███   ▄███ ███   ▄███    ▄█    ███     ███       ███    ███     ███        ▄█    ███
+████████▀  ████████▀   ▄████████▀     ▄████▀     ███    █▀     ▄████▀    ▄████████▀ㅤ
+v0.6.8                                                                          rust";
 
-pub const DEATH_TYPES : [&str; 16] = [
-    "Fallen", 
-    "Swarmed", 
-    "Impaled", 
-    "Gored", 
-    "Infested", 
-    "Opened", 
+//Linux
+#[cfg(target_os = "linux")]
+pub const DD_PROCESS: &str = "devildaggers";
+pub const LINUX_BLOCK_START: usize = 0x0052BF90;
+
+pub const DEATH_TYPES: [&str; 16] = [
+    "Fallen",
+    "Swarmed",
+    "Impaled",
+    "Gored",
+    "Infested",
+    "Opened",
     "Purged",
-    "Desecrated", 
-    "Sacrificed", 
-    "Eviscerated", 
-    "Annihilated", 
+    "Desecrated",
+    "Sacrificed",
+    "Eviscerated",
+    "Annihilated",
     "Intoxicated",
-    "Envenmonated", 
-    "Incarnated", 
-    "Discarnated", 
+    "Envenmonated",
+    "Incarnated",
+    "Discarnated",
     "Barbed",
 ];
