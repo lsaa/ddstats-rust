@@ -17,7 +17,7 @@ jobs:
       matrix:
         target:
           #          - x86_64-pc-windows-gnu
-          - x86_64-unknown-linux-musl
+          - x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v2
       - name: Install deps
@@ -32,3 +32,8 @@ jobs:
           use-cross: true
           command: build
           args: --release --target=${{ matrix.target }}
+      - name: Archive compiled data
+        uses: actions/upload-artifact@v2
+        with:
+          name: ddstats-rust-linux
+          path: target/release/ddstats-rust
