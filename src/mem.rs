@@ -4,6 +4,7 @@
 
 use crate::consts::*;
 use core::fmt::Write;
+use std::process::exit;
 use process_memory::{CopyAddress, ProcessHandle};
 use process_memory::{Pid, ProcessHandleExt, TryIntoProcessHandle};
 use std::cell::RefCell;
@@ -40,16 +41,10 @@ pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Resu
 
 #[cfg(target_os = "linux")] // CPU heaby operation, try to use it with a delay
 pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
-    use std::process::exit;
-
     let s = System::new_all();
     for process in s.get_process_by_name(process_name) {
-        println!("PROCESS FOUNDD");
-        exit(1);
         return Some((String::from(process.exe().to_str().unwrap()), process.pid()));
     }
-    println!("NAH NO PROCESS FOUND");
-    exit(1);
     None
 }
 
@@ -89,6 +84,8 @@ impl GameConnection {
             return Err("Couldn't get base address of process");
         }
         let base_address = base_address.unwrap();
+        println!("FUNNY GAME {}, {}", pid, base_address);
+        exit(1);
         Ok(Self {
             pid,
             handle,
