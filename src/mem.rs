@@ -4,6 +4,7 @@
 
 use crate::consts::*;
 use core::fmt::Write;
+use std::process::exit;
 use process_memory::{CopyAddress, ProcessHandle};
 use process_memory::{Pid, ProcessHandleExt, TryIntoProcessHandle};
 use std::cell::RefCell;
@@ -62,10 +63,8 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
     let exe = chars.as_str();
     while let Ok(_len) = f.read_until(0x0A, &mut buf) {
         let base_str = String::from_utf8(buf.clone()).expect("Couldn't decode stat");
-        if base_str.contains(exe) {
+        if base_str.contains(exe) && base_str.contains("r-xp") {
             let base_str = base_str.split("-").next().unwrap();
-            println!("{}", base_str);
-            exit(1);
             return Ok(usize::from_str_radix(&base_str, 16).expect("Couldn't convert base address to usize"));
         }
     }
@@ -120,7 +119,13 @@ impl GameConnection {
     pub fn is_alive(&self) -> bool {
         match self.handle.copy_address(self.base_address, &mut [0u8]) {
             Ok(_) => true,
-            _ => false,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    println!("Your user doesn't have access to process memory!");
+                    exit(1);
+                }
+                false
+            },
         }
     }
 
