@@ -64,6 +64,8 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
         let base_str = String::from_utf8(buf.clone()).expect("Couldn't decode stat");
         if base_str.contains(exe) {
             let base_str = base_str.split("-").next().unwrap();
+            println!("{}", base_str);
+            exit(1);
             return Ok(usize::from_str_radix(&base_str, 16).expect("Couldn't convert base address to usize"));
         }
     }
