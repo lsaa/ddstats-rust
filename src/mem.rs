@@ -49,7 +49,7 @@ pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
 
 #[cfg(target_os = "linux")] // 1000 times better than the windows one
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
-    use std::io::Read;
+    use std::{io::Read, process::exit};
 
     let mut f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
     let mut buf = Vec::<u8>::new();
@@ -64,7 +64,7 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
         let base_str = String::from_utf8(buf.clone()).expect("Couldn't decode stat");
         if base_str.contains(exe) {
             let base_str = base_str.split("-").next().unwrap();
-            return Ok(usize::from_str_radix(&base_str[0..12], 16).expect("Couldn't convert base address to usize"));
+            return Ok(usize::from_str_radix(&base_str, 16).expect("Couldn't convert base address to usize"));
         }
     }
     Err(std::io::Error::new(std::io::ErrorKind::NotFound, "No base address"))
