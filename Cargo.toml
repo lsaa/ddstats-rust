@@ -10,7 +10,7 @@ process-memory = "0.4.0"
 sysinfo = "0.15.1"
 tonic = "0.5.2"
 prost = "0.8"
-tui = "0.16.0"
+tui = { version = "0.16.0", default-features = false, features = ["crossterm"]}
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }

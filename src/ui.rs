@@ -5,7 +5,7 @@
 use std::io::Stdout;
 
 use tui::{
-    backend::{Backend, TermionBackend},
+    backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Corner, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
@@ -15,8 +15,8 @@ use tui::{
 
 use crate::mem::StatsBlockWithFrames;
 
-pub fn create_term() -> Terminal<TermionBackend<Stdout>> {
-    Terminal::new(TermionBackend::new(std::io::stdout())).expect("Funny terminal")
+pub fn create_term() -> Terminal<CrosstermBackend<Stdout>> {
+    Terminal::new(CrosstermBackend::new(std::io::stdout())).expect("Funny terminal")
 }
 
 pub fn draw_logo<B>(f: &mut Frame<B>, area: Rect)
