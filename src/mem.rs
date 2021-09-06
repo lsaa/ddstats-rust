@@ -4,7 +4,6 @@
 
 use crate::consts::*;
 use core::fmt::Write;
-use std::process::exit;
 use process_memory::{CopyAddress, ProcessHandle};
 use process_memory::{Pid, ProcessHandleExt, TryIntoProcessHandle};
 use std::cell::RefCell;
@@ -84,8 +83,6 @@ impl GameConnection {
             return Err("Couldn't get base address of process");
         }
         let base_address = base_address.unwrap();
-        println!("FUNNY GAME {}, {}", pid, base_address);
-        exit(1);
         Ok(Self {
             pid,
             handle,
@@ -106,6 +103,7 @@ impl GameConnection {
     }
 
     pub fn is_alive(&self) -> bool {
+        print!("I GOT HERE");
         match self.handle.copy_address(self.base_address, &mut [0u8]) {
             Ok(_) => true,
             _ => false,

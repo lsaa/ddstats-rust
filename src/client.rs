@@ -1,8 +1,4 @@
-use std::{
-    sync::mpsc::Sender,
-    thread,
-    time::{Duration, Instant},
-};
+use std::{process::exit, sync::mpsc::Sender, thread, time::{Duration, Instant}};
 
 use crate::{
     consts::{DD_PROCESS, VERSION},
@@ -61,6 +57,8 @@ impl Client {
         if !self.resolve_connection() {
             return;
         }
+        print!("AaA");
+        exit(0);
 
         if let Ok(_) = self.game_connection.read_stats_block() {
             self.game_state = GameClientState::Connected;
