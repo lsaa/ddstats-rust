@@ -57,8 +57,6 @@ impl Client {
         if !self.resolve_connection() {
             return;
         }
-        print!("AaA");
-        exit(0);
 
         if let Ok(_) = self.game_connection.read_stats_block() {
             self.game_state = GameClientState::Connected;

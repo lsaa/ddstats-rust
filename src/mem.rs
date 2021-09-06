@@ -49,12 +49,16 @@ pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
 
 #[cfg(target_os = "linux")] // 1000 times better than the windows one
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
-    let mut f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
+    use std::io::Read;
+
+    let mut f = BufReader::new(File::open(format!("/proc/{}/stat", pid))?);
     let mut buf = Vec::<u8>::new();
-    f.read_until(b'-', &mut buf)?;
-    let base_str = String::from_utf8(buf).expect("Couldn't decode base address");
-    let base_str = &base_str[..base_str.len() - 1];
-    Ok(usize::from_str_radix(base_str, 16).expect("Base Address Parse Error"))
+    f.read_to_end(&mut buf)?;
+    let base_str = String::from_utf8(buf).expect("Couldn't decode stat");
+    if let Some(addr) = base_str.split(" ").into_iter().nth(25) {
+        return Ok(usize::from_str_radix(addr, 10).expect("Base Address Parse Error"));
+    }
+    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "No base address"))
 }
 
 pub struct GameConnection {
@@ -103,7 +107,6 @@ impl GameConnection {
     }
 
     pub fn is_alive(&self) -> bool {
-        print!("I GOT HERE");
         match self.handle.copy_address(self.base_address, &mut [0u8]) {
             Ok(_) => true,
             _ => false,
