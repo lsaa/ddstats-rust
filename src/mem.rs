@@ -51,12 +51,21 @@ pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
     use std::io::Read;
 
-    let mut f = BufReader::new(File::open(format!("/proc/{}/stat", pid))?);
+    let mut f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
     let mut buf = Vec::<u8>::new();
-    f.read_to_end(&mut buf)?;
-    let base_str = String::from_utf8(buf).expect("Couldn't decode stat");
-    if let Some(addr) = base_str.split(" ").into_iter().nth(25) {
-        return Ok(usize::from_str_radix(addr, 10).expect("Base Address Parse Error"));
+    let mut exe = BufReader::new(File::open(format!("/proc/{}/cmdline", pid))?);
+    let mut exe_buf = Vec::<u8>::new();
+    exe.read_to_end(&mut exe_buf).expect("FUN");
+    let exe = String::from_utf8(exe_buf).unwrap_or(String::from("HAHAHA"));
+    let mut chars = exe.chars();
+    chars.next_back();
+    let exe = chars.as_str();
+    while let Ok(_len) = f.read_until(0x0A, &mut buf) {
+        let base_str = String::from_utf8(buf.clone()).expect("Couldn't decode stat");
+        if base_str.contains(exe) {
+            let base_str = base_str.split("-").next().unwrap();
+            return Ok(usize::from_str_radix(&base_str[0..12], 16).expect("Couldn't convert base address to usize"));
+        }
     }
     Err(std::io::Error::new(std::io::ErrorKind::NotFound, "No base address"))
 }
