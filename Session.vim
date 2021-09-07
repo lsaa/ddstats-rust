@@ -8,7 +8,7 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
 set shortmess=aoO
-badd +19 .github/workflows/rust.yml
+badd +44 .github/workflows/rust.yml
 badd +1 test.sh
 badd +1 test.sg
 badd +36 src/main.rs

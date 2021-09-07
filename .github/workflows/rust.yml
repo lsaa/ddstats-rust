@@ -37,3 +37,8 @@ jobs:
         with:
           name: ddstats-rust-linux
           path: target/x86_64-unknown-linux-gnu/release/ddstats-rust
+      - name: Archive compiled data (windows)
+        uses: actions/upload-artifact@v2
+        with:
+          name: ddstats-rust-windows
+          path: target/x86_64-pc-windows-gnu/release/ddstats-rust.exe
