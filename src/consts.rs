@@ -40,7 +40,7 @@ pub const LINUX_BLOCK_START: usize = 0x0052BF90;
 //Windows
 #[cfg(target_os = "windows")]
 pub const DD_PROCESS: &str = "dd";
-pub const WINDOWS_BLOCK_START: usize = 0x0052BF90;
+pub const WINDOWS_BLOCK_START: usize = 0x00227BE0;
 
 pub const DEATH_TYPES: [&str; 18] = [
     "Fallen",

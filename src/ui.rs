@@ -2,7 +2,7 @@
 // Funny UI
 //
 
-use std::io::Stdout;
+use std::io::{stdout, Stdout};
 
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -13,10 +13,23 @@ use tui::{
     Frame, Terminal,
 };
 
+use crossterm::{
+    event::EnableMouseCapture,
+    execute,
+    terminal::{enable_raw_mode, EnterAlternateScreen},
+};
+
 use crate::mem::StatsBlockWithFrames;
 
 pub fn create_term() -> Terminal<CrosstermBackend<Stdout>> {
-    Terminal::new(CrosstermBackend::new(std::io::stdout())).expect("Funny terminal")
+    enable_raw_mode().expect("Couldn't set terminal to raw mode");
+
+    let mut stdout = stdout();
+    execute!(stdout, EnableMouseCapture).expect("Funny Terminal Business");
+
+    let backend = CrosstermBackend::new(stdout);
+
+    Terminal::new(backend).expect("Couldn't create terminal")
 }
 
 pub fn draw_logo<B>(f: &mut Frame<B>, area: Rect)
@@ -79,7 +92,13 @@ where
     for time in funny_ghost_times {
         if time < real_timer {
             if let Some(time_frame) = last_data.get_frame_for_time(time) {
-                splits.push(Row::new(vec!["SPLIT".to_owned(), format!("{} HOMING AT {:.1}s", time_frame.homing, time)]).style(normal_style));
+                splits.push(
+                    Row::new(vec![
+                        "SPLIT".to_owned(),
+                        format!("{} HOMING AT {:.1}s", time_frame.homing, time),
+                    ])
+                    .style(normal_style),
+                );
             }
         }
     }
@@ -98,19 +117,19 @@ where
     rows.extend(splits);
 
     let t = Table::new(rows)
-    .block(Block::default().borders(Borders::ALL).title("Game Data"))
-    .widths(&[
-        Constraint::Percentage(25),
-        Constraint::Length(40),
-        Constraint::Max(10),
-    ])
-    .header(
-        Row::new(header)
-            .style(Style::default().fg(Color::Yellow))
-            .bottom_margin(0),
-    )
-    .style(Style::default().fg(Color::Red).bg(Color::Black))
-    .column_spacing(1);
+        .block(Block::default().borders(Borders::ALL).title("Game Data"))
+        .widths(&[
+            Constraint::Percentage(25),
+            Constraint::Length(40),
+            Constraint::Max(10),
+        ])
+        .header(
+            Row::new(header)
+                .style(Style::default().fg(Color::Yellow))
+                .bottom_margin(0),
+        )
+        .style(Style::default().fg(Color::Red).bg(Color::Black))
+        .column_spacing(1);
     f.render_widget(t, area);
 }
 

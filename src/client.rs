@@ -1,4 +1,8 @@
-use std::{process::exit, sync::mpsc::Sender, thread, time::{Duration, Instant}};
+use std::{
+    sync::mpsc::Sender,
+    thread,
+    time::{Duration, Instant},
+};
 
 use crate::{
     consts::{DD_PROCESS, VERSION},
@@ -58,11 +62,14 @@ impl Client {
             return;
         }
 
-        if let Ok(_) = self.game_connection.read_stats_block() {
-            self.game_state = GameClientState::Connected;
-            self.log_sender
-                .send("Game Connected!".to_owned())
-                .expect("Can't access log");
+        match self.game_connection.read_stats_block() {
+            Ok(_) => {
+                self.game_state = GameClientState::Connected;
+                self.log_sender
+                    .send("Game Connected!".to_owned())
+                    .expect("Can't access log");
+            }
+            Err(e) => {}
         }
     }
 
@@ -70,6 +77,7 @@ impl Client {
         if !self.resolve_connection() {
             return;
         }
+
         let with_frames = self.game_connection.read_stats_block_with_frames();
         if let Ok(with_frames) = with_frames {
             if with_frames.block.status == 4 && self.compiled_run.is_none() {

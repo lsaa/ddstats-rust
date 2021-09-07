@@ -2,19 +2,22 @@
 //  mem module
 //  Query memory from the game process
 
+#[cfg(windows)]
+extern crate winapi;
+
 use crate::consts::*;
 use core::fmt::Write;
-use std::process::exit;
 use process_memory::{CopyAddress, ProcessHandle};
-use process_memory::{Pid, ProcessHandleExt, TryIntoProcessHandle};
+use process_memory::{ProcessHandleExt, TryIntoProcessHandle};
 use std::cell::RefCell;
+use std::ffi::c_void;
 use std::mem::size_of;
+use std::process::exit;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
 };
-#[cfg(target_os = "linux")]
-use sysinfo::{ProcessExt, System, SystemExt};
+use sysinfo::{Pid, ProcessExt, System, SystemExt};
 
 pub const DATA_BLOCK_SIZE: usize = size_of::<StatsDataBlock>();
 pub const STATS_FRAME_SIZE: usize = size_of::<StatsFrame>();
@@ -24,6 +27,10 @@ thread_local! {
     static BLOCK_BUF: RefCell<[u8; DATA_BLOCK_SIZE]> = RefCell::new([0_u8; DATA_BLOCK_SIZE]);
     static FRAME_BUF: RefCell<[u8; STATS_FRAME_SIZE]> = RefCell::new([0_u8; STATS_FRAME_SIZE]);
 }
+
+//FUNNY
+unsafe impl Sync for GameConnection {}
+unsafe impl Send for GameConnection {}
 
 #[rustfmt::skip] #[cfg(target_os = "linux")]
 pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Result<StatsDataBlock, std::io::Error> {
@@ -39,7 +46,20 @@ pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Resu
     })
 }
 
-#[cfg(target_os = "linux")] // CPU heaby operation, try to use it with a delay
+#[rustfmt::skip] #[cfg(target_os = "windows")]
+pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Result<StatsDataBlock, std::io::Error> {
+    use process_memory::*;
+    let base = if base.is_none() { get_base_address(handle.0 as usize)? } else { base.unwrap() };
+    let offsets = [base + WINDOWS_BLOCK_START, 0];
+    let pointer = handle.get_offset(&offsets)? + 0xC; // 0xC to skip the header
+    BLOCK_BUF.with(|buf| {
+        let mut buf = buf.borrow_mut();
+        handle.copy_address(pointer, buf.as_mut())?;
+        let (_head, body, _tail) = unsafe { buf.as_mut().align_to::<StatsDataBlock>() };
+        Ok(body[0].clone())
+    })
+}
+
 pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
     let s = System::new_all();
     for process in s.get_process_by_name(process_name) {
@@ -50,7 +70,7 @@ pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
 
 #[cfg(target_os = "linux")] // 1000 times better than the windows one
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
-    use std::{io::Read, process::exit};
+    use std::io::Read;
 
     let mut f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
     let mut buf = Vec::<u8>::new();
@@ -65,10 +85,33 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
         let base_str = String::from_utf8(buf.clone()).expect("Couldn't decode stat");
         if base_str.contains(exe) && base_str.contains("r-xp") {
             let base_str = base_str.split("-").next().unwrap();
-            return Ok(usize::from_str_radix(&base_str, 16).expect("Couldn't convert base address to usize"));
+            return Ok(usize::from_str_radix(&base_str, 16)
+                .expect("Couldn't convert base address to usize"));
         }
     }
-    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "No base address"))
+    Err(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "No base address",
+    ))
+}
+
+#[cfg(windows)]
+pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
+    use std::{mem::size_of_val, os::raw::c_ulong};
+
+    let snapshot = unsafe {
+        winapi::um::tlhelp32::CreateToolhelp32Snapshot(
+            winapi::um::tlhelp32::TH32CS_SNAPMODULE | winapi::um::tlhelp32::TH32CS_SNAPMODULE32,
+            pid as u32 as c_ulong as winapi::shared::minwindef::DWORD,
+        )
+    };
+
+    let mut me = winapi::um::tlhelp32::MODULEENTRY32::default();
+    me.dwSize = unsafe { size_of_val(&me) as c_ulong as winapi::shared::minwindef::DWORD };
+    unsafe {
+        winapi::um::tlhelp32::Module32First(snapshot, &mut me);
+    }
+    Ok(me.modBaseAddr as usize)
 }
 
 pub struct GameConnection {
@@ -80,6 +123,36 @@ pub struct GameConnection {
 }
 
 impl GameConnection {
+    #[cfg(target_os = "windows")]
+    pub fn try_create(process_name: &str) -> Result<Self, &str> {
+        let proc = get_proc(process_name);
+        if proc.is_none() {
+            return Err("Process not found");
+        }
+        let proc = proc.unwrap();
+        let handle;
+        let pid = proc.1;
+        if pid == 0 {
+            return Err("PID is 0");
+        }
+        let handle_pid = process_memory::Pid::from(pid as u32);
+        handle = handle_pid.try_into_process_handle().unwrap();
+        let base_address = get_base_address(pid);
+        if base_address.is_err() {
+            return Err("Couldn't get base address of process");
+        }
+        let base_address = base_address.unwrap();
+
+        Ok(Self {
+            pid,
+            handle,
+            base_address,
+            path: proc.0,
+            last_fetch: None,
+        })
+    }
+
+    #[cfg(target_os = "linux")]
     pub fn try_create(process_name: &str) -> Result<Self, &str> {
         let proc = get_proc(process_name);
         if proc.is_none() {
@@ -124,8 +197,9 @@ impl GameConnection {
                     println!("Your user doesn't have access to process memory!");
                     exit(1);
                 }
+                println!("{:?}", e);
                 false
-            },
+            }
         }
     }
 

@@ -1,0 +1,1 @@
+STEAM_COMPAT_DATA_PATH=/home/lsaa/media/hdd/SteamLibrary/steamapps/compatdata/422970 WINEPREFIX=/home/lsaa/media/hdd/SteamLibrary/steamapps/compatdata/422970/pfx /home/lsaa/.steam/steam/steamapps/common/Proton\ 6.3/proton run target/x86_64-pc-windows-gnu/release/ddstats-rust.exe

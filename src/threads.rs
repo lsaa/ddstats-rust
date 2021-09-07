@@ -63,6 +63,7 @@ impl UiThread {
     pub fn create_and_start(latest_data: ArcRw<StatsBlockWithFrames>, logs: ArcRw<Vec<String>>) {
         let mut term = crate::ui::create_term();
         let tick_duration = Duration::from_secs_f32(1. / 12.);
+        term.clear().expect("Couldn't clear terminal");
         thread::spawn(move || loop {
             let start_time = Instant::now();
             let read_data = latest_data.read().expect("Couldn't read last data");
@@ -83,7 +84,11 @@ impl UiThread {
                 crate::ui::draw_logo(f, layout[0]);
                 crate::ui::draw_logs(f, info[0], &log_list);
                 crate::ui::draw_info_table(f, info[1], &read_data);
-                let delay = Instant::now() - start_time;
+                let delay = if start_time.elapsed() > tick_duration {
+                    Duration::ZERO
+                } else {
+                    Instant::now() - start_time
+                };
                 thread::sleep(tick_duration - delay);
             })
             .unwrap();

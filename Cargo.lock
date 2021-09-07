@@ -161,12 +161,14 @@ dependencies = [
 name = "ddstats-rust"
 version = "0.6.8"
 dependencies = [
+ "crossterm",
  "process-memory",
  "prost",
  "sysinfo",
  "tonic",
  "tonic-build",
  "tui",
+ "winapi",
 ]
 
 [[package]]

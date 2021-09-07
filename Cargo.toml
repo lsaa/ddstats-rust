@@ -11,6 +11,10 @@ sysinfo = "0.15.1"
 tonic = "0.5.2"
 prost = "0.8"
 tui = { version = "0.16.0", default-features = false, features = ["crossterm"]}
+crossterm = "0.20.0"
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.9", features = ["tlhelp32"]}
