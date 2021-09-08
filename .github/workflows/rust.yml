@@ -43,7 +43,10 @@ jobs:
           name: ddstats-rust-windows
           path: target/x86_64-pc-windows-gnu/release/ddstats-rust.exe
       - name: Package
-        run: sh .github/workflows/package.sh ${{ matrix.target }}
+        run: sh .github/workflows/package.sh
+  release:
+    runs-on: ubuntu-lastest
+    steps:
       - uses: ncipollo/release-action@v1
         with:
           artifacts: "ddstats-rust-linux_x86_64.zip, ddstats-rust-windows-x86_64.zip"

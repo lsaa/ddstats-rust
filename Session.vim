@@ -8,8 +8,8 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
 set shortmess=aoO
-badd +1 .github/workflows/package.sh
 badd +1 .github/workflows/rust.yml
+badd +1 .github/workflows/package.sh
 badd +1 /opt/st/config.h
 badd +13 Cargo.toml
 badd +61 ~/.Xresources
@@ -154,12 +154,12 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 5 - ((4 * winheight(0) + 32) / 64)
+let s:l = 4 - ((3 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 5
-normal! 020|
+keepjumps 4
+normal! 0
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/package.sh
@@ -175,11 +175,11 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 10 - ((9 * winheight(0) + 32) / 64)
+let s:l = 3 - ((2 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 10
+keepjumps 3
 normal! 0
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
@@ -200,7 +200,7 @@ if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 46
-normal! 09|
+normal! 044|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/src/mem.rs
@@ -265,7 +265,7 @@ normal! zt
 keepjumps 31
 normal! 0
 lcd ~/.local/source/ddstats-rust/ddstats-rust
-tabnext 6
+tabnext 7
 set stal=1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0&& getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
