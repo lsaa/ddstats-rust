@@ -6,6 +6,7 @@ use tui::layout::{Constraint, Direction, Layout};
 
 use crate::{
     client::{Client, GameClientState, SubmitGameEvent},
+    config,
     mem::{GameConnection, StatsBlockWithFrames},
 };
 use std::{
@@ -64,26 +65,47 @@ impl UiThread {
         let mut term = crate::ui::create_term();
         let tick_duration = Duration::from_secs_f32(1. / 12.);
         term.clear().expect("Couldn't clear terminal");
+        let cfg = config::CONFIG.with(|e| e.clone());
         thread::spawn(move || loop {
             let start_time = Instant::now();
             let read_data = latest_data.read().expect("Couldn't read last data");
             let log_list = logs.read().expect("Poisoned logs!").clone();
+
             term.draw(|f| {
-                let layout = Layout::default()
+                let mut layout = Layout::default()
                     .direction(Direction::Vertical)
-                    .constraints([Constraint::Min(12), Constraint::Percentage(100)].as_ref())
+                    .constraints([Constraint::Percentage(100)])
                     .split(f.size());
 
-                let info = Layout::default()
+                if !cfg.ui_conf.hide_logo {
+                    layout = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([Constraint::Min(12), Constraint::Percentage(100)])
+                        .split(f.size());
+
+                    crate::ui::draw_logo(f, layout[0]);
+                }
+
+                let mut info = Layout::default()
                     .direction(Direction::Horizontal)
-                    .constraints([Constraint::Min(28), Constraint::Percentage(100)].as_ref())
+                    .constraints([Constraint::Percentage(100)])
                     .horizontal_margin(0)
                     .vertical_margin(0)
-                    .split(layout[1]);
+                    .split(layout[layout.len() - 1]);
 
-                crate::ui::draw_logo(f, layout[0]);
-                crate::ui::draw_logs(f, info[0], &log_list);
-                crate::ui::draw_info_table(f, info[1], &read_data);
+                if !cfg.ui_conf.hide_logs {
+                    info = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Min(28), Constraint::Percentage(100)])
+                        .horizontal_margin(0)
+                        .vertical_margin(0)
+                        .split(layout[layout.len() - 1]);
+
+                    crate::ui::draw_logs(f, info[0], &log_list);
+                }
+
+                crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
+
                 let delay = if start_time.elapsed() > tick_duration {
                     Duration::ZERO
                 } else {

@@ -10,7 +10,7 @@ use core::fmt::Write;
 use process_memory::{CopyAddress, ProcessHandle};
 use process_memory::{ProcessHandleExt, TryIntoProcessHandle};
 use std::cell::RefCell;
-use std::ffi::c_void;
+
 use std::mem::size_of;
 use std::process::exit;
 use std::{

@@ -69,7 +69,7 @@ impl Client {
                     .send("Game Connected!".to_owned())
                     .expect("Can't access log");
             }
-            Err(e) => {}
+            Err(_e) => {}
         }
     }
 
