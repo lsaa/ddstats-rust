@@ -8,7 +8,7 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
 set shortmess=aoO
-badd +1 .github/workflows/rust.yml
+badd +51 .github/workflows/rust.yml
 badd +1 .github/workflows/package.sh
 badd +1 /opt/st/config.h
 badd +13 Cargo.toml
@@ -161,8 +161,9 @@ keepjumps 1
 normal! 024|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
-edit ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/rust.yml
+edit ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/package.sh
 argglobal
+balt ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/rust.yml
 setlocal fdm=manual
 setlocal fde=0
 setlocal fmr={{{,}}}
@@ -173,12 +174,12 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 46 - ((45 * winheight(0) + 32) / 64)
+let s:l = 4 - ((3 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 46
-normal! 044|
+keepjumps 4
+normal! 072|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/src/mem.rs
