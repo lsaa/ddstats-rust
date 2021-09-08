@@ -9,6 +9,7 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
 endif
 set shortmess=aoO
 badd +1 .github/workflows/rust.yml
+badd +38 src/ui.rs
 badd +1 .github/workflows/package.sh
 badd +1 /opt/st/config.h
 badd +13 Cargo.toml
@@ -20,7 +21,6 @@ badd +29 src/threads.rs
 badd +47 src/client.rs
 badd +200 src/mem.rs
 badd +21 src/consts.rs
-badd +283 src/ui.rs
 badd +96 src/config.rs
 argglobal
 %argdel
@@ -113,11 +113,11 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 284 - ((37 * winheight(0) + 32) / 64)
+let s:l = 38 - ((32 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 284
+keepjumps 38
 normal! 09|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
@@ -195,12 +195,12 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 20 - ((19 * winheight(0) + 32) / 64)
+let s:l = 40 - ((39 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 20
-normal! 033|
+keepjumps 40
+normal! 025|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/src/mem.rs

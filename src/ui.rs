@@ -4,7 +4,7 @@
 
 use std::{io::{stdout, Stdout}, iter, sync::Arc, time::{Duration, Instant}};
 
-use tui::{Frame, Terminal, backend::{Backend, CrosstermBackend}, layout::{Alignment, Constraint, Corner, Rect}, style::{Color, Modifier, Style}, text::{Span, Spans}, widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap, canvas::{Canvas, Painter, Shape}}};
+use tui::{Frame, Terminal, backend::{Backend, CrosstermBackend}, layout::{Alignment, Constraint, Corner, Rect}, style::{Color, Modifier, Style}, symbols, text::{Span, Spans}, widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap, canvas::{Canvas, Painter, Shape}}};
 
 use serde::Deserialize;
 
@@ -35,6 +35,7 @@ where
         start_time: Instant::now()
     };
     let canvas = Canvas::default()
+        .marker(symbols::Marker::Block)
         .block(
             Block::default()
                 .title("Connecting...")
