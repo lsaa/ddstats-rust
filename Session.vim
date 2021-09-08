@@ -8,8 +8,8 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
 set shortmess=aoO
-badd +51 .github/workflows/rust.yml
 badd +1 .github/workflows/package.sh
+badd +1 .github/workflows/rust.yml
 badd +1 /opt/st/config.h
 badd +13 Cargo.toml
 badd +61 ~/.Xresources
@@ -26,6 +26,7 @@ argglobal
 %argdel
 $argadd src/main.rs
 set stal=2
+tabnew
 tabnew
 tabnew
 tabnew
@@ -153,12 +154,12 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 1 - ((0 * winheight(0) + 32) / 64)
+let s:l = 5 - ((4 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
-normal! 024|
+keepjumps 5
+normal! 020|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/package.sh
@@ -174,12 +175,32 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 4 - ((3 * winheight(0) + 32) / 64)
+let s:l = 10 - ((9 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 4
-normal! 072|
+keepjumps 10
+normal! 0
+lcd ~/.local/source/ddstats-rust/ddstats-rust
+tabnext
+edit ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/rust.yml
+argglobal
+setlocal fdm=manual
+setlocal fde=0
+setlocal fmr={{{,}}}
+setlocal fdi=#
+setlocal fdl=0
+setlocal fml=1
+setlocal fdn=20
+setlocal nofen
+silent! normal! zE
+let &fdl = &fdl
+let s:l = 46 - ((45 * winheight(0) + 32) / 64)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 46
+normal! 09|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/src/mem.rs
@@ -244,7 +265,7 @@ normal! zt
 keepjumps 31
 normal! 0
 lcd ~/.local/source/ddstats-rust/ddstats-rust
-tabnext 7
+tabnext 6
 set stal=1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0&& getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
