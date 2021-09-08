@@ -8,10 +8,11 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
 set shortmess=aoO
+badd +1 .github/workflows/rust.yml
+badd +1 .github/workflows/package.sh
 badd +1 /opt/st/config.h
 badd +13 Cargo.toml
 badd +61 ~/.Xresources
-badd +44 .github/workflows/rust.yml
 badd +1 test.sh
 badd +1 test.sg
 badd +46 src/main.rs
@@ -25,6 +26,8 @@ argglobal
 %argdel
 $argadd src/main.rs
 set stal=2
+tabnew
+tabnew
 tabnew
 tabnew
 tabnew
@@ -130,12 +133,52 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 46 - ((45 * winheight(0) + 32) / 64)
+let s:l = 15 - ((14 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 46
-normal! 036|
+keepjumps 15
+normal! 0
+lcd ~/.local/source/ddstats-rust/ddstats-rust
+tabnext
+edit ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/package.sh
+argglobal
+setlocal fdm=manual
+setlocal fde=0
+setlocal fmr={{{,}}}
+setlocal fdi=#
+setlocal fdl=0
+setlocal fml=1
+setlocal fdn=20
+setlocal nofen
+silent! normal! zE
+let &fdl = &fdl
+let s:l = 1 - ((0 * winheight(0) + 32) / 64)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 1
+normal! 024|
+lcd ~/.local/source/ddstats-rust/ddstats-rust
+tabnext
+edit ~/.local/source/ddstats-rust/ddstats-rust/.github/workflows/rust.yml
+argglobal
+setlocal fdm=manual
+setlocal fde=0
+setlocal fmr={{{,}}}
+setlocal fdi=#
+setlocal fdl=0
+setlocal fml=1
+setlocal fdn=20
+setlocal nofen
+silent! normal! zE
+let &fdl = &fdl
+let s:l = 49 - ((48 * winheight(0) + 32) / 64)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 49
+normal! 011|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/src/mem.rs
@@ -200,7 +243,7 @@ normal! zt
 keepjumps 31
 normal! 0
 lcd ~/.local/source/ddstats-rust/ddstats-rust
-tabnext 5
+tabnext 7
 set stal=1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0&& getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
