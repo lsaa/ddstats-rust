@@ -195,12 +195,12 @@ setlocal fdn=20
 setlocal nofen
 silent! normal! zE
 let &fdl = &fdl
-let s:l = 40 - ((39 * winheight(0) + 32) / 64)
+let s:l = 58 - ((57 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 40
-normal! 025|
+keepjumps 58
+normal! 019|
 lcd ~/.local/source/ddstats-rust/ddstats-rust
 tabnext
 edit ~/.local/source/ddstats-rust/ddstats-rust/src/mem.rs
@@ -277,7 +277,6 @@ if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
-nohlsearch
 doautoall SessionLoadPost
 unlet SessionLoad
 " vim: set ft=vim :
