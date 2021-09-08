@@ -2,22 +2,19 @@
 // Funny UI
 //
 
-use std::io::{stdout, Stdout};
+use std::{io::{stdout, Stdout}, iter, sync::Arc, time::{Duration, Instant}};
 
-use tui::{
-    backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Corner, Rect},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap},
-    Frame, Terminal,
-};
+use tui::{Frame, Terminal, backend::{Backend, CrosstermBackend}, layout::{Alignment, Constraint, Corner, Rect}, style::{Color, Modifier, Style}, text::{Span, Spans}, widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap, canvas::{Canvas, Painter, Shape}}};
 
 use serde::Deserialize;
 
 use crossterm::{event::EnableMouseCapture, execute, terminal::enable_raw_mode};
 
 use crate::{config, mem::StatsBlockWithFrames};
+
+thread_local! {
+    static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
+}
 
 pub fn create_term() -> Terminal<CrosstermBackend<Stdout>> {
     enable_raw_mode().expect("Couldn't set terminal to raw mode");
@@ -28,6 +25,28 @@ pub fn create_term() -> Terminal<CrosstermBackend<Stdout>> {
     let backend = CrosstermBackend::new(stdout);
 
     Terminal::new(backend).expect("Couldn't create terminal")
+}
+
+pub fn draw_levi<B>(f: &mut Frame<B>, area: Rect)
+where
+    B: Backend,
+{
+    let levi = LeviRipple {
+        start_time: Instant::now()
+    };
+    let canvas = Canvas::default()
+        .block(
+            Block::default()
+                .title("Connecting...")
+                .borders(Borders::NONE),
+        )
+        .x_bounds([-40., 40.])
+        .y_bounds([-40., 40.])
+        .paint(|ctx| {
+            ctx.draw(&levi);
+       });
+
+    f.render_widget(canvas, area);
 }
 
 pub fn draw_logo<B>(f: &mut Frame<B>, area: Rect)
@@ -48,7 +67,7 @@ where
 
     let paragraph = Paragraph::new(logo)
         .block(Block::default().borders(Borders::NONE))
-        .style(Style::default().fg(Color::Red).bg(Color::Black))
+        .style(cfg.ui_conf.style.logo)
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: false });
 
@@ -72,7 +91,7 @@ where
             Constraint::Length(40),
             Constraint::Max(10),
         ])
-        .style(Style::default().fg(Color::Red).bg(Color::Black))
+        .style(cfg.ui_conf.style.game_data)
         .column_spacing(1);
     f.render_widget(t, area);
 }
@@ -81,6 +100,7 @@ pub fn draw_logs<B>(f: &mut Frame<B>, area: Rect, logs: &Vec<String>)
 where
     B: Backend,
 {
+    let cfg = config::CONFIG.with(|z| z.clone());
     let log_size = if logs.len() > ((area.height - 2) as usize) {
         logs.len() + 2 - area.height as usize
     } else {
@@ -96,10 +116,10 @@ where
             if !logs.is_empty() && i == logs.len() - 1 {
                 log = Spans::from(vec![Span::styled(
                     message,
-                    Style::default().fg(Color::Black).bg(Color::White),
+                    cfg.ui_conf.style.most_recent_log,
                 )]);
             } else {
-                log = Spans::from(vec![Span::raw(message)]);
+                log = Spans::from(vec![Span::styled(message, cfg.ui_conf.style.log_text)]);
             }
             ListItem::new(vec![log])
         })
@@ -108,7 +128,7 @@ where
     let events_list = List::new(events)
         .block(Block::default().borders(Borders::ALL).title("Logs"))
         .start_corner(Corner::TopRight)
-        .style(Style::default().fg(Color::White).bg(Color::Black));
+        .style(cfg.ui_conf.style.logs);
     f.render_widget(events_list, area);
 }
 
@@ -124,13 +144,13 @@ pub enum GameDataModules {
     Accuracy,
     GemsLost(bool), // bool: show the ways you lost the gems
     CollectionAccuracy,
-    HomingSplits(Vec<f32>), // Vec<f32>: split times
+    HomingSplits(Vec<(String, f32)>), // Vec<(String, f32)>: split times and names
     Spacing,
 }
 
 #[rustfmt::skip]
-impl GameDataModules {
-    pub fn to_rows(&self, data: &StatsBlockWithFrames) -> Vec<Row> {
+impl<'a> GameDataModules {
+    pub fn to_rows(&'a self, data: &'a StatsBlockWithFrames) -> Vec<Row> {
         match self {
             GameDataModules::RunData => create_run_data_rows(&data),
             GameDataModules::Timer => create_timer_rows(&data),
@@ -146,34 +166,38 @@ impl GameDataModules {
     }
 }
 
-fn create_run_data_rows(data: &&StatsBlockWithFrames) -> Vec<Row> {
+fn create_run_data_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
-    let player = data.block.player_username().to_owned();
+    let player = data.block.replay_player_username().to_owned();
     vec![Row::new(["REPLAY".to_string(), player]).style(normal_style)]
 }
 
-fn create_timer_rows(data: &&StatsBlockWithFrames) -> Vec<Row> {
-    let normal_style = Style::default().fg(Color::White);
-    vec![Row::new(["TIMER".into(), format!("{:.4}s", data.block.time_max)]).style(normal_style)]
-}
-
-fn create_gems_rows(data: &&StatsBlockWithFrames) -> Vec<Row> {
+fn create_timer_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
     vec![Row::new([
-        "GEMS".into(),
-        format!("{}", data.block.gems_collected),
-    ])]
+        "TIMER".into(),
+        format!("{:.4}s", data.block.time_max + data.block.starting_time),
+    ])
+    .style(normal_style)]
 }
 
-fn create_homing_rows(data: &&StatsBlockWithFrames, show_max: bool) -> Vec<Row> {
+fn create_gems_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
+    vec![Row::new(["GEMS".into(), format!("{}", data.block.gems_collected)]).style(normal_style)]
+}
+
+fn create_homing_rows(data: &StatsBlockWithFrames, show_max: bool) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
     let homing_with_max = Row::new([
         "HOMING".into(),
         format!(
             "{} [MAX {} at {:.4}s]",
             data.block.homing, data.block.max_homing, data.block.time_max_homing
         ),
-    ]);
-    let homing_without_max = Row::new(["HOMING".into(), format!("{}", data.block.homing)]);
+    ])
+    .style(normal_style);
+    let homing_without_max =
+        Row::new(["HOMING".into(), format!("{}", data.block.homing)]).style(normal_style);
     if show_max {
         vec![homing_with_max]
     } else {
@@ -181,56 +205,63 @@ fn create_homing_rows(data: &&StatsBlockWithFrames, show_max: bool) -> Vec<Row> 
     }
 }
 
-fn creake_kills_row(data: &&StatsBlockWithFrames) -> Vec<Row> {
-    vec![Row::new(["KILLS".into(), format!("{}", data.block.kills)])]
+fn creake_kills_row(data: &StatsBlockWithFrames) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
+    vec![Row::new(["KILLS".into(), format!("{}", data.block.kills)]).style(normal_style)]
 }
 
-fn create_accuracy_rows(data: &&StatsBlockWithFrames) -> Vec<Row> {
+fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
     if let Some(frame) = data.frames.last() {
         let mut acc = frame.daggers_hit as f32 / frame.daggers_fired as f32;
         if acc.is_nan() {
-            acc = 100.00;
+            acc = 1.00;
         }
-        return vec![Row::new(["ACCURACY".into(), format!("{:.2}%", acc)])];
+        return vec![
+            Row::new(["ACCURACY".into(), format!("{:.2}%", acc * 100.)]).style(normal_style)
+        ];
     }
-    vec![Row::new(["ACCURACY", "100.00%"])]
+    vec![Row::new(["ACCURACY", "100.00%"]).style(normal_style)]
 }
 
 #[rustfmt::skip]
-fn create_gems_lost_rows(data: &&StatsBlockWithFrames, details: bool) -> Vec<Row> {
+fn create_gems_lost_rows(data: &StatsBlockWithFrames, details: bool) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
     let total_gems_lost = data.block.gems_eaten + data.block.gems_despawned;
     let gems_lost_detail = format!(
         "{} [{} DESPAWNED; {} EATEN]",
         total_gems_lost, data.block.gems_despawned, data.block.gems_eaten
     );
     let gems_lost_min = format!("{}", total_gems_lost);
-    vec![Row::new(["GEMS LOST".into(), if details { gems_lost_detail } else { gems_lost_min }])]
+    vec![Row::new(["GEMS LOST".into(), if details { gems_lost_detail } else { gems_lost_min }]).style(normal_style)]
 }
 
-fn create_collection_accuracy_rows(data: &&StatsBlockWithFrames) -> Vec<Row> {
+fn create_collection_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
     if let Some(frame) = data.frames.last() {
-        let total_gems_lost = data.block.gems_eaten + data.block.gems_despawned;
-        let acc = (data.block.gems_total - total_gems_lost) as f32 / data.block.gems_total as f32;
-        let mut acc = frame.daggers_hit as f32 / frame.daggers_fired as f32;
+        let total_gems_lost = frame.gems_eaten + frame.gems_despawned;
+        let mut acc = (frame.gems_total - total_gems_lost) as f32 / frame.gems_total as f32;
         if acc.is_nan() {
-            acc = 100.00;
+            acc = 1.00;
         }
-        return vec![Row::new(["COLLECTION ACC".into(), format!("{:.2}%", acc)])];
+        return vec![
+            Row::new(["COLLECTION ACC".into(), format!("{:.2}%", acc * 100.)]).style(normal_style),
+        ];
     }
-    vec![Row::new(["COLLECTION ACC", "100.00%"])]
+    vec![Row::new(["COLLECTION ACC", "100.00%"]).style(normal_style)]
 }
 
-fn create_homing_splits_rows(data: &&StatsBlockWithFrames, times: Vec<f32>) -> Vec<Row> {
+fn create_homing_splits_rows(data: &StatsBlockWithFrames, times: Vec<(String, f32)>) -> Vec<Row> {
     let mut splits = Vec::new();
     let normal_style = Style::default().fg(Color::White);
     let real_timer = data.block.time_max + data.block.starting_time;
-    for time in times {
+    for (name, time) in times {
         if time < real_timer {
             if let Some(time_frame) = data.get_frame_for_time(time) {
                 splits.push(
                     Row::new(vec![
                         "SPLIT".to_owned(),
-                        format!("{} HOMING AT {:.1}s", time_frame.homing, time),
+                        format!("{}:\t{}", name, time_frame.homing),
                     ])
                     .style(normal_style),
                 );
@@ -238,4 +269,28 @@ fn create_homing_splits_rows(data: &&StatsBlockWithFrames, times: Vec<f32>) -> V
         }
     }
     splits
+}
+
+
+pub struct LeviRipple {
+    pub start_time: Instant
+}
+
+impl Shape for LeviRipple {
+    fn draw(&self, painter: &mut Painter) {
+        let data_zone = vec![vec![0_u8;100]; 100];
+        let lev = LEVI.with(|z| z.clone());
+        let time_elapsed = lev.start_time.elapsed().div_f32(50.);
+        for (y, rows) in data_zone.iter().enumerate() {
+            for (x, _pix) in rows.iter().enumerate() {
+                let map_x = -((100 as f32 - x as f32) - (100 as f32 / 2.));
+                let map_y = (100 as f32 - y as f32) - (100 as f32 / 2.);
+                if let Some((canvasx, canvasy)) = painter.get_point(map_x as f64, map_y as f64) {
+                    let height = (((map_x * map_x + map_y * map_y).sqrt() / 3.) - time_elapsed.as_millis() as f32).sin();
+                    let height = (height * (255. / 2.)) + (255. / 2.);
+                    painter.paint(canvasx, canvasy, Color::Rgb(height as u8, 0, 0));
+                }
+            }
+        }
+    }
 }

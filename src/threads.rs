@@ -4,16 +4,8 @@
 
 use tui::layout::{Constraint, Direction, Layout};
 
-use crate::{
-    client::{Client, GameClientState, SubmitGameEvent},
-    config,
-    mem::{GameConnection, StatsBlockWithFrames},
-};
-use std::{
-    sync::{mpsc::Sender, Arc, RwLock},
-    thread::{self, JoinHandle},
-    time::{Duration, Instant},
-};
+use crate::{Conn, client::{Client, GameClientState, SubmitGameEvent}, config, mem::{GameConnection, StatsBlockWithFrames}, ui::draw_levi};
+use std::{ops::BitAnd, sync::{mpsc::Sender, Arc, RwLock}, thread::{self, JoinHandle}, time::{Duration, Instant}};
 
 /* Game Poll Thread */
 pub struct GameClientThread {
@@ -25,6 +17,8 @@ impl GameClientThread {
         last_poll: ArcRw<StatsBlockWithFrames>,
         sender: Sender<SubmitGameEvent>,
         log_sender: Sender<String>,
+        game_disconnected: Sender<bool>,
+        game_conneceted: Sender<bool>
     ) -> Self {
         let mut client = Client {
             game_connection: GameConnection::dead_connection(),
@@ -32,6 +26,7 @@ impl GameClientThread {
             last_game_update: Instant::now(),
             compiled_run: None,
             log_sender: log_sender.clone(),
+            conn: (game_conneceted, game_disconnected)
         };
 
         let join_handle = thread::spawn(move || loop {
@@ -61,7 +56,7 @@ impl GameClientThread {
 pub struct UiThread {}
 
 impl UiThread {
-    pub fn create_and_start(latest_data: ArcRw<StatsBlockWithFrames>, logs: ArcRw<Vec<String>>) {
+    pub fn create_and_start(latest_data: ArcRw<StatsBlockWithFrames>, logs: ArcRw<Vec<String>>, connected: ArcRw<Conn>) {
         let mut term = crate::ui::create_term();
         let tick_duration = Duration::from_secs_f32(1. / 12.);
         term.clear().expect("Couldn't clear terminal");
@@ -76,6 +71,11 @@ impl UiThread {
                     .direction(Direction::Vertical)
                     .constraints([Constraint::Percentage(100)])
                     .split(f.size());
+
+                if !connected.read().expect("AAA").is_ok {
+                    draw_levi(f, layout[0]);
+                    return;
+                }
 
                 if !cfg.ui_conf.hide_logo {
                     layout = Layout::default()

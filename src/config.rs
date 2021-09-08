@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use ron::de::from_str;
 use serde::Deserialize;
+use tui::style::Style;
 
 use crate::ui::GameDataModules;
 
@@ -35,6 +36,17 @@ const DEFAULT_CFG: &str = "// ddstats-rust config
     ui_conf: (
         hide_logo: false,
         hide_logs: false,
+        style: (
+            logo:               (fg: Some(Red), bg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            logs:               (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            log_text:           (fg: Some(White), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            most_recent_log:    (bg: Some(White), fg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            game_data:          (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_name:         (fg: Some(White), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_value:        (fg: Some(Magenta), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_diff_pos:     (fg: Some(Green), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_diff_neg:     (fg: Some(Red), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0))
+        ),
         game_data_modules: [
             RunData,
             Timer,
@@ -45,7 +57,20 @@ const DEFAULT_CFG: &str = "// ddstats-rust config
             GemsLost(true),
             CollectionAccuracy,
             Spacing,
-            HomingSplits([366., 709., 800., 875., 942., 996., 1047., 1091., 1133.])
+            HomingSplits([
+                (\"Levi\", 366.),
+                // (\"490\", 490.),
+                // (\"580\", 580.),
+                (\"700\", 709.),
+                (\"800\", 800.),
+                (\"860\", 875.),
+                (\"940\", 942.),
+                (\"1000\", 996.),
+                (\"1040\", 1047.),
+                (\"1080\", 1091.),
+                (\"1130\", 1133.),
+                (\"1160\", 1163.),
+            ]),
         ],
         logo: \"
 
@@ -68,6 +93,20 @@ pub struct UiConf {
     pub hide_logs: bool,
     pub logo: String,
     pub game_data_modules: Vec<GameDataModules>,
+    pub style: Styles,
+}
+
+#[derive(Deserialize)]
+pub struct Styles {
+    pub logo: Style,
+    pub logs: Style,
+    pub log_text: Style,
+    pub most_recent_log: Style,
+    pub game_data: Style,
+    pub split_name: Style,
+    pub split_value: Style,
+    pub split_diff_pos: Style,
+    pub split_diff_neg: Style,
 }
 
 #[derive(Deserialize)]

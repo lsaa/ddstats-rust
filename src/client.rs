@@ -22,6 +22,7 @@ pub struct Client {
     pub last_game_update: Instant,
     pub compiled_run: Option<(CompiledRun, bool)>,
     pub log_sender: Sender<String>,
+    pub conn: (Sender<bool>, Sender<bool>),
 }
 
 impl Client {
@@ -43,6 +44,7 @@ impl Client {
             self.log_sender
                 .send("Game Disconnected!".to_string())
                 .expect("Can't access log");
+            self.conn.1.send(false).unwrap();
             return false;
         }
         return true;
@@ -68,6 +70,7 @@ impl Client {
                 self.log_sender
                     .send("Game Connected!".to_owned())
                     .expect("Can't access log");
+                self.conn.0.send(true).unwrap();
             }
             Err(_e) => {}
         }
