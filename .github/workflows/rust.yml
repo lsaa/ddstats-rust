@@ -55,8 +55,8 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           commit: master
-          tag: v0.1.${{ github.run_number }}
-          artifacts: "ddstats-rust-linux_x86_64.zip, ddstats-rust-windows-x86_64.zip"
+          tag: v0.6.8-${{ github.run_number }}
+          artifacts: "ddstats-rust-linux-x86_64.zip,ddstats-rust-windows-x86_64.zip"
           bodyFile: "body.md"
           preRelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
