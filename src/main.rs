@@ -38,7 +38,7 @@ fn main() {
     );
 
     let _ui_thread =
-        UiThread::create_and_start(last_poll.clone(), logs.clone(), game_connected.clone());
+       UiThread::create_and_start(last_poll.clone(), logs.clone(), game_connected.clone());
 
     loop {
         if let Ok(new_log) = log_recevicer.try_recv() {

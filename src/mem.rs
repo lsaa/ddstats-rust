@@ -68,12 +68,17 @@ pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
     None
 }
 
-#[cfg(target_os = "linux")] // 1000 times better than the windows one
+fn is_elf(start_bytes: &[u8; 4]) -> bool {
+    let elf_signature: [u8; 4] = [0x7f, 0x45, 0x4c, 0x46];
+    elf_signature == *start_bytes
+}
+
+#[cfg(target_os = "linux")]
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
     use std::io::Read;
+    use scan_fmt::scan_fmt;
 
-    let mut f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
-    let mut buf = Vec::<u8>::new();
+    let f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
     let mut exe = BufReader::new(File::open(format!("/proc/{}/cmdline", pid))?);
     let mut exe_buf = Vec::<u8>::new();
     exe.read_to_end(&mut exe_buf).expect("FUN");
@@ -81,14 +86,20 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
     let mut chars = exe.chars();
     chars.next_back();
     let exe = chars.as_str();
-    while let Ok(_len) = f.read_until(0x0A, &mut buf) {
-        let base_str = String::from_utf8(buf.clone()).expect("Couldn't decode stat");
-        if base_str.contains(exe) && base_str.contains("r-xp") {
-            let base_str = base_str.split("-").next().unwrap();
-            return Ok(usize::from_str_radix(&base_str, 16)
-                .expect("Couldn't convert base address to usize"));
+    let handle = pid.try_into_process_handle().expect(":::");
+    let mut magic_buf = [0u8; 4];
+
+    for line in f.lines() {
+        if let Ok(line) = line {
+            let (start, _end, _perms, mod_path) = scan_fmt!(&line, "{x}-{x} {} {*} {*} {*} {[^\t\n]}\n", [hex usize], [hex usize], String, String).unwrap();
+            handle.copy_address(start, &mut magic_buf).unwrap();
+            if mod_path.contains(exe) && is_elf(&magic_buf) {
+                return Ok(start);
+            }
         }
     }
+
+
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         "No base address",

@@ -17,6 +17,7 @@ serde = { version = "1.0.60", features = ["serde_derive"] }
 log = "0.4.14"
 simple-logging = "2.0.2"
 regex = "1.5.4"
+scan_fmt = "0.2.6"
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }
