@@ -93,7 +93,7 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
         if let Ok(line) = line {
             let (start, _end, _perms, mod_path) = scan_fmt!(&line, "{x}-{x} {} {*} {*} {*} {[^\t\n]}\n", [hex usize], [hex usize], String, String).unwrap();
             handle.copy_address(start, &mut magic_buf).unwrap();
-            if mod_path.contains(exe) && is_elf(&magic_buf) {
+            if is_elf(&magic_buf) {
                 return Ok(start);
             }
         }
