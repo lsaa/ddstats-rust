@@ -75,31 +75,27 @@ fn is_elf(start_bytes: &[u8; 4]) -> bool {
 
 #[cfg(target_os = "linux")]
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
-    use std::io::Read;
     use scan_fmt::scan_fmt;
 
     let f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
-    let mut exe = BufReader::new(File::open(format!("/proc/{}/cmdline", pid))?);
-    let mut exe_buf = Vec::<u8>::new();
-    exe.read_to_end(&mut exe_buf).expect("FUN");
-    let exe = String::from_utf8(exe_buf).unwrap_or(String::from("HAHAHA"));
-    let mut chars = exe.chars();
-    chars.next_back();
-    let exe = chars.as_str();
     let handle = pid.try_into_process_handle().expect(":::");
     let mut magic_buf = [0u8; 4];
 
     for line in f.lines() {
         if let Ok(line) = line {
-            let (start, _end, _perms, mod_path) = scan_fmt!(&line, "{x}-{x} {} {*} {*} {*} {[^\t\n]}\n", [hex usize], [hex usize], String, String).unwrap();
-            handle.copy_address(start, &mut magic_buf).unwrap();
-            if is_elf(&magic_buf) {
-                log::info!("ELF: {} -> {}", start, mod_path);
-                //return Ok(start);
+            if let Ok((start, _end, perms, mod_path)) = scan_fmt!(&line, "{x}-{x} {} {*} {*} {*} {[^\t\n]}\n", [hex usize], [hex usize], String, String)
+            {
+                let r = handle.copy_address(start, &mut magic_buf);
+                if r.is_err() {
+                    continue;
+                }
+                if is_elf(&magic_buf) && mod_path.contains(DD_PROCESS) && perms.contains("x") {
+                    log::info!("ELF: {} -> {}", start, mod_path);
+                    return Ok(start);
+                }
             }
         }
     }
-
 
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,

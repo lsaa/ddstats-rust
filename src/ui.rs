@@ -219,7 +219,8 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
                     "{} [MAX {} at {:.4}s]",
                     data.block.homing, data.block.max_homing, data.block.time_max_homing
                 ),
-            ]).style(normal_style)]
+            ])
+            .style(normal_style)]
         }
         SizeStyle::Compact => {
             vec![Row::new([
@@ -228,7 +229,8 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
                     "{} [{} @ {:.4}s]",
                     data.block.homing, data.block.max_homing, data.block.time_max_homing
                 ),
-            ]).style(normal_style)]
+            ])
+            .style(normal_style)]
         }
         SizeStyle::Minimal => {
             vec![Row::new(["HOMING".into(), format!("{}", get_homing(&data))]).style(normal_style)]
