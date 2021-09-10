@@ -12,9 +12,15 @@ pub mod threads;
 use std::sync::{mpsc, Arc, RwLock};
 
 use mem::StatsBlockWithFrames;
+use simple_logging::log_to_file;
 use threads::{GameClientThread, UiThread};
 
 fn main() {
+    let cfg = config::CONFIG.with(|z| z.clone());
+    if cfg.debug_logs {
+        log_to_file("debug_logs.txt", log::LevelFilter::Info).expect("Couldn't create logger!");
+    }
+
     let last_poll: Arc<RwLock<StatsBlockWithFrames>> = Arc::new(RwLock::default());
     let logs: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::default());
     let (submit_event_sender, submit_event_receiver) = mpsc::channel();
@@ -23,10 +29,16 @@ fn main() {
     let (game_disconnected_sender, game_disconnected_receiver) = mpsc::channel::<bool>();
     let game_connected = Arc::new(RwLock::new(Conn { is_ok: false }));
 
-    let _game_thread =
-        GameClientThread::create_and_start(last_poll.clone(), submit_event_sender, log_sender, game_disconnected_sender, game_connected_sender);
+    let _game_thread = GameClientThread::create_and_start(
+        last_poll.clone(),
+        submit_event_sender,
+        log_sender,
+        game_disconnected_sender,
+        game_connected_sender,
+    );
 
-    let _ui_thread = UiThread::create_and_start(last_poll.clone(), logs.clone(), game_connected.clone());
+    let _ui_thread =
+        UiThread::create_and_start(last_poll.clone(), logs.clone(), game_connected.clone());
 
     loop {
         if let Ok(new_log) = log_recevicer.try_recv() {
@@ -52,5 +64,5 @@ fn main() {
 }
 
 pub struct Conn {
-    pub is_ok: bool
+    pub is_ok: bool,
 }

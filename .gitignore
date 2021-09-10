@@ -1,1 +1,4 @@
 /target
+/.undodir
+Session.vim
+debug_logs.txt

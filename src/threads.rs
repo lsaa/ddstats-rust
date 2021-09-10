@@ -4,8 +4,18 @@
 
 use tui::layout::{Constraint, Direction, Layout};
 
-use crate::{Conn, client::{Client, GameClientState, SubmitGameEvent}, config, mem::{GameConnection, StatsBlockWithFrames}, ui::draw_levi};
-use std::{ops::BitAnd, sync::{mpsc::Sender, Arc, RwLock}, thread::{self, JoinHandle}, time::{Duration, Instant}};
+use crate::{
+    client::{Client, GameClientState, SubmitGameEvent},
+    config,
+    mem::{GameConnection, StatsBlockWithFrames},
+    ui::draw_levi,
+    Conn,
+};
+use std::{
+    sync::{mpsc::Sender, Arc, RwLock},
+    thread::{self, JoinHandle},
+    time::{Duration, Instant},
+};
 
 /* Game Poll Thread */
 pub struct GameClientThread {
@@ -18,7 +28,7 @@ impl GameClientThread {
         sender: Sender<SubmitGameEvent>,
         log_sender: Sender<String>,
         game_disconnected: Sender<bool>,
-        game_conneceted: Sender<bool>
+        game_conneceted: Sender<bool>,
     ) -> Self {
         let mut client = Client {
             game_connection: GameConnection::dead_connection(),
@@ -26,7 +36,7 @@ impl GameClientThread {
             last_game_update: Instant::now(),
             compiled_run: None,
             log_sender: log_sender.clone(),
-            conn: (game_conneceted, game_disconnected)
+            conn: (game_conneceted, game_disconnected),
         };
 
         let join_handle = thread::spawn(move || loop {
@@ -56,9 +66,13 @@ impl GameClientThread {
 pub struct UiThread {}
 
 impl UiThread {
-    pub fn create_and_start(latest_data: ArcRw<StatsBlockWithFrames>, logs: ArcRw<Vec<String>>, connected: ArcRw<Conn>) {
+    pub fn create_and_start(
+        latest_data: ArcRw<StatsBlockWithFrames>,
+        logs: ArcRw<Vec<String>>,
+        connected: ArcRw<Conn>,
+    ) {
         let mut term = crate::ui::create_term();
-        let tick_duration = Duration::from_secs_f32(1. / 12.);
+        let tick_duration = Duration::from_secs_f32(1. / 7.);
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
         thread::spawn(move || loop {
@@ -72,7 +86,7 @@ impl UiThread {
                     .constraints([Constraint::Percentage(100)])
                     .split(f.size());
 
-                if !connected.read().expect("AAA").is_ok {
+                if !connected.read().expect("AAA").is_ok && cfg.ui_conf.orb_connection_animation {
                     draw_levi(f, layout[0]);
                     return;
                 }

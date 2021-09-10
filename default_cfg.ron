@@ -1,0 +1,70 @@
+// ddstats-rust config
+// Optional configurations:
+//    - ui_conf.logo: (String)
+
+(
+    offline: true,
+    debug_logs: true,
+    host: "https://ddstats.com",
+    auto_clipboard: true,
+    stream: (
+        stats: false,
+        replay_stats: false,
+        non_default_spawnsets: false,
+    ),
+    submit: (
+        stats: false,
+        replay_stats: false,
+        non_default_spawnsets: false,
+    ),
+    discord: (
+        notify_above_1000: true,
+        notify_player_best: true,
+        notify_custom_spawnsets: false,
+    ),
+
+    // UI Config
+    ui_conf: (
+        hide_logo: false,
+        hide_logs: false,
+        orb_connection_animation: true,
+        style: (
+            logo:               (fg: Some(Red), bg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            logs:               (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            log_text:           (fg: Some(White), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            most_recent_log:    (bg: Some(White), fg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            game_data:          (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_name:         (fg: Some(Yellow), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_value:        (fg: Some(Magenta), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_diff_pos:     (fg: Some(Green), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_diff_neg:     (fg: Some(Red), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0))
+        ),
+        game_data_modules: [
+            RunData,
+            Timer,
+            Gems,
+            Homing(Full), // Minimal, Compact, Full
+            Kills,
+            Accuracy,
+            GemsLost(Full), // Minimal, Compact, Full
+            CollectionAccuracy,
+            HomingUsed,
+            Spacing,
+            HomingSplits([ // (name, time)
+                ("Levi", 366.),
+                // ("490", 490.),
+                // ("580", 580.),
+                ("700", 709.),
+                ("800", 800.),
+                ("860", 875.),
+                ("940", 942.),
+                ("1000", 996.),
+                ("1040", 1047.),
+                ("1080", 1091.),
+                ("1130", 1133.),
+                ("1160", 1163.),
+            ]),
+        ],
+    ),
+
+)

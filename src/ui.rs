@@ -2,9 +2,22 @@
 // Funny UI
 //
 
-use std::{io::{stdout, Stdout}, iter, sync::Arc, time::{Duration, Instant}};
+use std::{
+    io::{stdout, Stdout},
+    sync::Arc,
+    time::Instant,
+};
 
-use tui::{Frame, Terminal, backend::{Backend, CrosstermBackend}, layout::{Alignment, Constraint, Corner, Rect}, style::{Color, Modifier, Style}, symbols, text::{Span, Spans}, widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap, canvas::{Canvas, Painter, Shape}}};
+use regex::Regex;
+use tui::{
+    backend::{Backend, CrosstermBackend},
+    buffer::Buffer,
+    layout::{Alignment, Constraint, Corner, Rect},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Widget, Wrap},
+    Frame, Terminal,
+};
 
 use serde::Deserialize;
 
@@ -32,22 +45,10 @@ where
     B: Backend,
 {
     let levi = LeviRipple {
-        start_time: Instant::now()
+        start_time: Instant::now(),
     };
-    let canvas = Canvas::default()
-        .marker(symbols::Marker::Block)
-        .block(
-            Block::default()
-                .title("Connecting...")
-                .borders(Borders::NONE),
-        )
-        .x_bounds([-40., 40.])
-        .y_bounds([-40., 40.])
-        .paint(|ctx| {
-            ctx.draw(&levi);
-       });
 
-    f.render_widget(canvas, area);
+    f.render_widget(levi, area);
 }
 
 pub fn draw_logo<B>(f: &mut Frame<B>, area: Rect)
@@ -55,7 +56,7 @@ where
     B: Backend,
 {
     let cfg = config::CONFIG.with(|c| c.clone());
-    let logo: Vec<&str> = cfg.ui_conf.logo.lines().collect();
+    let logo: Vec<&str> = cfg.ui_conf.logo.0.lines().collect();
     let logo: Vec<Spans> = logo
         .into_iter()
         .map(|string| {
@@ -81,6 +82,7 @@ where
 {
     let cfg = config::CONFIG.with(|z| z.clone());
     let mut rows = vec![];
+    let colorizer = GameDataColorizer {};
     for module in &cfg.ui_conf.game_data_modules {
         rows.extend(module.to_rows(last_data));
     }
@@ -95,6 +97,7 @@ where
         .style(cfg.ui_conf.style.game_data)
         .column_spacing(1);
     f.render_widget(t, area);
+    f.render_widget(colorizer, area);
 }
 
 pub fn draw_logs<B>(f: &mut Frame<B>, area: Rect, logs: &Vec<String>)
@@ -140,28 +143,37 @@ pub enum GameDataModules {
     RunData,
     Timer,
     Gems,
-    Homing(bool), // bool: show max homing and time
+    Homing(SizeStyle), // bool: show max homing and time
     Kills,
     Accuracy,
-    GemsLost(bool), // bool: show the ways you lost the gems
+    GemsLost(SizeStyle), // bool: show the ways you lost the gems
     CollectionAccuracy,
     HomingSplits(Vec<(String, f32)>), // Vec<(String, f32)>: split times and names
+    HomingUsed,
     Spacing,
 }
 
-#[rustfmt::skip]
+#[derive(Deserialize, Clone)]
+pub enum SizeStyle {
+    Minimal,
+    Compact,
+    Full,
+}
+
+#[allow(unreachable_patterns)] #[rustfmt::skip]
 impl<'a> GameDataModules {
     pub fn to_rows(&'a self, data: &'a StatsBlockWithFrames) -> Vec<Row> {
         match self {
             GameDataModules::RunData => create_run_data_rows(&data),
             GameDataModules::Timer => create_timer_rows(&data),
             GameDataModules::Gems => create_gems_rows(&data),
-            GameDataModules::Homing(show_max) => create_homing_rows(&data, show_max.clone()),
+            GameDataModules::Homing(size_style) => create_homing_rows(&data, size_style.clone()),
             GameDataModules::Kills => creake_kills_row(&data),
             GameDataModules::Accuracy => create_accuracy_rows(&data),
-            GameDataModules::GemsLost(show_detail) => create_gems_lost_rows(&data, show_detail.clone()),
+            GameDataModules::GemsLost(size_style) => create_gems_lost_rows(&data, size_style.clone()),
             GameDataModules::CollectionAccuracy => create_collection_accuracy_rows(&data),
             GameDataModules::HomingSplits(times) => create_homing_splits_rows(&data, times.clone()),
+            GameDataModules::HomingUsed => create_homing_used_rows(&data),
             GameDataModules::Spacing | _ => vec![Row::new([""])],
         }
     }
@@ -187,22 +199,41 @@ fn create_gems_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     vec![Row::new(["GEMS".into(), format!("{}", data.block.gems_collected)]).style(normal_style)]
 }
 
-fn create_homing_rows(data: &StatsBlockWithFrames, show_max: bool) -> Vec<Row> {
-    let normal_style = Style::default().fg(Color::White);
-    let homing_with_max = Row::new([
-        "HOMING".into(),
-        format!(
-            "{} [MAX {} at {:.4}s]",
-            data.block.homing, data.block.max_homing, data.block.time_max_homing
-        ),
-    ])
-    .style(normal_style);
-    let homing_without_max =
-        Row::new(["HOMING".into(), format!("{}", data.block.homing)]).style(normal_style);
-    if show_max {
-        vec![homing_with_max]
+fn get_homing(data: &StatsBlockWithFrames) -> u32 {
+    let homing;
+    if let Some(most_recent) = data.frames.last() {
+        homing = most_recent.homing;
     } else {
-        vec![homing_without_max]
+        homing = 0;
+    }
+    homing as u32
+}
+
+fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
+    match style {
+        SizeStyle::Full => {
+            vec![Row::new([
+                "HOMING".into(),
+                format!(
+                    "{} [MAX {} at {:.4}s]",
+                    data.block.homing, data.block.max_homing, data.block.time_max_homing
+                ),
+            ]).style(normal_style)]
+        }
+        SizeStyle::Compact => {
+            vec![Row::new([
+                "HOMING".into(),
+                format!(
+                    "{} [{} @ {:.4}s]",
+                    data.block.homing, data.block.max_homing, data.block.time_max_homing
+                ),
+            ]).style(normal_style)]
+        }
+        SizeStyle::Minimal => {
+            vec![Row::new(["HOMING".into(), format!("{}", get_homing(&data))]).style(normal_style)]
+        }
+        _ => vec![],
     }
 }
 
@@ -226,7 +257,7 @@ fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
 }
 
 #[rustfmt::skip]
-fn create_gems_lost_rows(data: &StatsBlockWithFrames, details: bool) -> Vec<Row> {
+fn create_gems_lost_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
     let total_gems_lost = data.block.gems_eaten + data.block.gems_despawned;
     let gems_lost_detail = format!(
@@ -234,7 +265,19 @@ fn create_gems_lost_rows(data: &StatsBlockWithFrames, details: bool) -> Vec<Row>
         total_gems_lost, data.block.gems_despawned, data.block.gems_eaten
     );
     let gems_lost_min = format!("{}", total_gems_lost);
-    vec![Row::new(["GEMS LOST".into(), if details { gems_lost_detail } else { gems_lost_min }]).style(normal_style)]
+
+    match style {
+        SizeStyle::Full => {
+            vec![Row::new(["GEMS LOST".into(), gems_lost_detail]).style(normal_style)]
+        },
+        SizeStyle::Compact => {
+            let compact = format!("{} [{}+{}]", total_gems_lost, data.block.gems_despawned, data.block.gems_eaten);
+            vec![Row::new(["GEMS LOST".into(), compact]).style(normal_style)]
+        },
+        SizeStyle::Minimal => {
+            vec![Row::new(["GEMS LOST".into(), gems_lost_min]).style(normal_style)]
+        }
+    }
 }
 
 fn create_collection_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
@@ -256,42 +299,198 @@ fn create_homing_splits_rows(data: &StatsBlockWithFrames, times: Vec<(String, f3
     let mut splits = Vec::new();
     let normal_style = Style::default().fg(Color::White);
     let real_timer = data.block.time_max + data.block.starting_time;
+    let mut last_split = 105;
     for (name, time) in times {
         if time < real_timer {
             if let Some(time_frame) = data.get_frame_for_time(time) {
                 splits.push(
                     Row::new(vec![
                         "SPLIT".to_owned(),
-                        format!("{}:\t{}", name, time_frame.homing),
+                        format!(
+                            "{:>4}: {:<4} ({:+})",
+                            name,
+                            time_frame.homing,
+                            time_frame.homing - &last_split
+                        ),
                     ])
                     .style(normal_style),
                 );
+                last_split = time_frame.homing;
             }
         }
     }
     splits
 }
 
-
-pub struct LeviRipple {
-    pub start_time: Instant
+fn create_homing_used_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
+    vec![Row::new([
+        "HOMING USED".into(),
+        format!("{}", data.homing_usage_from_frames()),
+    ])
+    .style(normal_style)]
 }
 
-impl Shape for LeviRipple {
-    fn draw(&self, painter: &mut Painter) {
-        let data_zone = vec![vec![0_u8;100]; 100];
-        let lev = LEVI.with(|z| z.clone());
-        let time_elapsed = lev.start_time.elapsed().div_f32(50.);
-        for (y, rows) in data_zone.iter().enumerate() {
-            for (x, _pix) in rows.iter().enumerate() {
-                let map_x = -((100 as f32 - x as f32) - (100 as f32 / 2.));
-                let map_y = (100 as f32 - y as f32) - (100 as f32 / 2.);
-                if let Some((canvasx, canvasy)) = painter.get_point(map_x as f64, map_y as f64) {
-                    let height = (((map_x * map_x + map_y * map_y).sqrt() / 3.) - time_elapsed.as_millis() as f32).sin();
-                    let height = (height * (255. / 2.)) + (255. / 2.);
-                    painter.paint(canvasx, canvasy, Color::Rgb(height as u8, 0, 0));
+pub struct LeviRipple {
+    pub start_time: Instant,
+}
+
+const TERM_COLOR_RAMP: &str = " .:-=+*#%@█";
+
+fn char_from_intensity(intensity: u8) -> char {
+    let w = (intensity as f32 / 255.).clamp(0., 1.);
+    let m = (TERM_COLOR_RAMP.len() - 1) as f32 * w;
+    TERM_COLOR_RAMP
+        .chars()
+        .nth(m.floor().clamp(4., 10.) as usize)
+        .unwrap()
+}
+
+pub struct GameDataColorizer {}
+
+fn buffer_as_lines(buf: &Buffer, area: &Rect) -> Vec<String> {
+    let w = buf.area().width;
+    let mut res = vec![];
+    let mut current_string = String::new();
+    let mut x = 0;
+    let mut y = 0;
+    buf.content().into_iter().for_each(|cell| {
+        if x == w {
+            if !current_string.is_empty() {
+                res.push(current_string.clone());
+            }
+            current_string = String::new();
+            x = 0;
+            y += 1;
+        }
+        if area.intersects(Rect::new(x, y, 1, 1)) {
+            current_string.push_str(cell.symbol.clone().as_str());
+        }
+        x += 1;
+    });
+    res
+}
+
+impl<'a> Widget for GameDataColorizer {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let cfg = config::CONFIG.with(|x| x.clone());
+        let re = Regex::new(r"SPLIT\s*(\S*):\s*(\d*)\s*\(([\+\-]?\d*)\)").unwrap();
+        let lines = buffer_as_lines(&buf, &area);
+        for (y, line) in lines.iter().enumerate() {
+            // Color Splits
+            if line.contains("SPLIT") {
+                for cap in re.captures_iter(&line) {
+                    let y = y as u16 + area.y;
+                    let (name, count, diff) = (
+                        cap.get(1).unwrap(),
+                        cap.get(2).unwrap(),
+                        cap.get(3).unwrap(),
+                    );
+                    for x in name.range() {
+                        let x = x as u16 + area.x - 2;
+                        buf.get_mut(x, y).set_style(cfg.ui_conf.style.split_name);
+                    }
+                    for x in count.range() {
+                        let x = x as u16 + area.x - 2;
+                        buf.get_mut(x, y).set_style(cfg.ui_conf.style.split_value);
+                    }
+
+                    let dstyle = if diff.as_str().to_string().contains("+") {
+                        cfg.ui_conf.style.split_diff_pos
+                    } else {
+                        cfg.ui_conf.style.split_diff_neg
+                    };
+                    buf.get_mut(diff.range().start as u16 - 1 + area.x, y)
+                        .set_style(dstyle);
+                    buf.get_mut(diff.range().end as u16 + 1 + area.x, y)
+                        .set_style(dstyle);
+
+                    for x in diff.range() {
+                        let x = x as u16 + area.x - 2;
+                        buf.get_mut(x, y).set_style(dstyle);
+                    }
+                    break;
                 }
             }
         }
+    }
+}
+
+impl<'a> Widget for LeviRipple {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let lev = LEVI.with(|z| z.clone());
+        let time_elapsed = lev.start_time.elapsed().div_f32(50.);
+        // Different Messages so it can always be centered
+        let msg1 = "Waiting for Devil Daggers";
+        let msg2 = "Waiting for Game";
+        let mut tmp = [0; 4];
+        for y in 0..area.height {
+            for x in 0..area.width {
+                let map_x = -((area.width as f32 - x as f32) - (area.width as f32 / 2.));
+                let map_y = (area.height as f32 - y as f32) - (area.height as f32 / 2.);
+                let height = (((map_x * map_x + map_y * map_y).sqrt() / 9.)
+                    - time_elapsed.as_millis() as f32)
+                    .sin();
+                let height = (height * (255. / 2.)) + (255. / 2.);
+                let height = height.clamp(90., 255.);
+                buf.get_mut(x, y)
+                    .set_symbol(char_from_intensity(height as u8).encode_utf8(&mut tmp))
+                    .set_style(Style::default().bg(Color::Rgb(0, 0, 0)).fg(Color::Rgb(
+                        height as u8,
+                        0,
+                        0,
+                    )));
+            }
+        }
+
+        let msg;
+        if area.width % 2 == 0 {
+            msg = msg2;
+        } else {
+            msg = msg1;
+        }
+
+        let mut s = "".to_owned();
+        for _ in 0..msg.len() {
+            s.push_str("#");
+        }
+
+        for _ in 0..16 {
+            s.push_str("#");
+        }
+
+        buf.set_span(
+            area.width / 2 - (msg.len() / 2) as u16 - 8,
+            area.height / 2 - 1,
+            &Span::styled(
+                s.clone(),
+                Style::default().bg(Color::Black).fg(Color::Black),
+            ),
+            msg.len() as u16 + 16,
+        );
+        buf.set_span(
+            area.width / 2 - (msg.len() / 2) as u16 - 8,
+            area.height / 2 + 1,
+            &Span::styled(
+                s.clone(),
+                Style::default().bg(Color::Black).fg(Color::Black),
+            ),
+            msg.len() as u16 + 16,
+        );
+        buf.set_span(
+            area.width / 2 - (msg.len() / 2) as u16 - 8,
+            area.height / 2 + 0,
+            &Span::styled(
+                s.clone(),
+                Style::default().bg(Color::Black).fg(Color::Black),
+            ),
+            msg.len() as u16 + 16,
+        );
+        buf.set_span(
+            area.width / 2 - (msg.len() / 2) as u16,
+            area.height / 2,
+            &Span::styled(msg, Style::default().bg(Color::Black).fg(Color::White)),
+            msg.len() as u16,
+        );
     }
 }

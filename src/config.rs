@@ -2,18 +2,24 @@
 // Actual gaming
 //
 
+use std::fs::File;
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
+use ron::de::from_reader;
 use ron::de::from_str;
 use serde::Deserialize;
 use tui::style::Style;
 
+use crate::consts::LOGO_NEW;
 use crate::ui::GameDataModules;
 
 const DEFAULT_CFG: &str = "// ddstats-rust config
 
 (
     offline: true,
+    debug_logs: false,
     host: \"https://ddstats.com\",
     auto_clipboard: true,
     stream: (
@@ -36,13 +42,14 @@ const DEFAULT_CFG: &str = "// ddstats-rust config
     ui_conf: (
         hide_logo: false,
         hide_logs: false,
+        orb_connection_animation: true,
         style: (
             logo:               (fg: Some(Red), bg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             logs:               (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             log_text:           (fg: Some(White), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             most_recent_log:    (bg: Some(White), fg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             game_data:          (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_name:         (fg: Some(White), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            split_name:         (fg: Some(Yellow), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             split_value:        (fg: Some(Magenta), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             split_diff_pos:     (fg: Some(Green), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             split_diff_neg:     (fg: Some(Red), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0))
@@ -56,6 +63,7 @@ const DEFAULT_CFG: &str = "// ddstats-rust config
             Accuracy,
             GemsLost(true),
             CollectionAccuracy,
+            HomingUsed,
             Spacing,
             HomingSplits([
                 (\"Levi\", 366.),
@@ -91,9 +99,20 @@ v0.6.8                                                                          
 pub struct UiConf {
     pub hide_logo: bool,
     pub hide_logs: bool,
-    pub logo: String,
+    #[serde(default)]
+    pub logo: Logo,
     pub game_data_modules: Vec<GameDataModules>,
     pub style: Styles,
+    pub orb_connection_animation: bool,
+}
+
+#[derive(Deserialize)]
+pub struct Logo(pub String);
+
+impl std::default::Default for Logo {
+    fn default() -> Self {
+        Logo(LOGO_NEW.to_string())
+    }
 }
 
 #[derive(Deserialize)]
@@ -113,6 +132,7 @@ pub struct Styles {
 pub struct DDStatsRustConfig {
     pub host: String,
     pub offline: bool,
+    pub debug_logs: bool,
     pub auto_clipboard: bool,
     pub stream: Stream,
     pub submit: Submit,
@@ -145,6 +165,41 @@ thread_local! {
     pub static CONFIG: Arc<DDStatsRustConfig> = Arc::new(get_config());
 }
 
+#[cfg(target_os = "linux")]
+fn get_priority_file() -> PathBuf {
+    let cwd = Path::new("./config.ron").to_owned();
+    if cwd.exists() {
+        cwd
+    } else {
+        let home = if option_env!("XDG_CONFIG_HOME").is_some() {
+            env!("XDG_CONFIG_HOME")
+        } else {
+            env!("HOME")
+        };
+        Path::new(format!("{}/.config/ddstats-rust/config.ron", home).as_str()).to_owned()
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn get_priority_file() -> PathBuf {
+    Path::new("./config.ron").to_owned()
+}
+
 fn get_config() -> DDStatsRustConfig {
+    if get_priority_file().exists() {
+        let f = File::open(&get_priority_file()).expect("Failed opening file");
+        return from_reader(f).expect("Failed to load config");
+    }
+
+    if let Some(dir) = option_env!("CARGO_MANIFEST_DIR") {
+        log::info!("Trying to load default cfg");
+        let c = format!("{}/default_cfg.ron", dir);
+        let fp = Path::new(c.as_str());
+        if fp.exists() {
+            let f = File::open(&fp).expect("Coudln't read default_cfg");
+            return from_reader(f).expect("EE");
+        }
+    }
+
     from_str(DEFAULT_CFG).expect("FUN")
 }

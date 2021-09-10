@@ -332,7 +332,7 @@ pub struct StatsDataBlock {
     pub time_enemies_alive_max: f32,
     pub time_max: f32,       // Max time of replay / current time in-game
     padding1: [u8; 4],       // fun
-    pub stats_base: [u8; 8], // Pointer to stats
+    pub stats_base: [u8; 8], // Pointer to frames
     pub stats_frames_loaded: i32,
     pub stats_finished_loading: bool,
     padding2: [u8; 3],
@@ -396,5 +396,17 @@ impl StatsBlockWithFrames {
         if real_time <= 0. { return None; }
         if real_time + 1. > self.frames.len() as f32 { return None; }
         return Some(&self.frames[real_time as usize]);
+    }
+
+    pub fn homing_usage_from_frames(&self) -> u32 {
+        let mut neg_diff = 0;
+        let mut last_frame_homing = 0;
+        for frame in &self.frames {
+            if frame.homing < last_frame_homing {
+                neg_diff += -(frame.homing - last_frame_homing);
+            }
+            last_frame_homing = frame.homing;
+        }
+        neg_diff as u32
     }
 }
