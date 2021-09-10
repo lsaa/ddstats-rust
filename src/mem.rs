@@ -94,7 +94,8 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
             let (start, _end, _perms, mod_path) = scan_fmt!(&line, "{x}-{x} {} {*} {*} {*} {[^\t\n]}\n", [hex usize], [hex usize], String, String).unwrap();
             handle.copy_address(start, &mut magic_buf).unwrap();
             if is_elf(&magic_buf) {
-                return Ok(start);
+                log::info!("ELF: {} -> {}", start, mod_path);
+                //return Ok(start);
             }
         }
     }
