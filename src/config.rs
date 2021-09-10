@@ -171,11 +171,12 @@ fn get_priority_file() -> PathBuf {
     if cwd.exists() {
         cwd
     } else {
-        let home = if option_env!("XDG_CONFIG_HOME").is_some() {
-            env!("XDG_CONFIG_HOME")
+        let home;
+        if let Ok(xdg_home) = std::env::var("XDG_CONFIG_HOME") {
+            home = xdg_home;
         } else {
-            env!("HOME")
-        };
+            home = std::env::var("HOME").unwrap();
+        }
         Path::new(format!("{}/.config/ddstats-rust/config.ron", home).as_str()).to_owned()
     }
 }
