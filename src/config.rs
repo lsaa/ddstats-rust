@@ -167,9 +167,10 @@ thread_local! {
 
 #[cfg(target_os = "linux")]
 fn get_priority_file() -> PathBuf {
-    let cwd = Path::new("./config.ron").to_owned();
-    if cwd.exists() {
-        cwd
+    let exe_path = std::env::current_exe().unwrap();
+    let config_path = exe_path.with_file_name("config.ron");
+    if config_path.exists() {
+        config_path
     } else {
         let home;
         if let Ok(xdg_home) = std::env::var("XDG_CONFIG_HOME") {
