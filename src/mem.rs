@@ -7,14 +7,12 @@ extern crate winapi;
 
 use crate::consts::*;
 use core::fmt::Write;
-use std::os::unix::prelude::CommandExt;
-#[cfg(target_os = "linux")]
-use fork::{daemon, fork, Fork};
-use process_memory::{CopyAddress, ProcessHandle};
-use process_memory::{ProcessHandleExt, TryIntoProcessHandle};
 use std::cell::RefCell;
 use std::io::Read;
 use std::path::Path;
+
+use process_memory::{CopyAddress, ProcessHandle};
+use process_memory::{ProcessHandleExt, TryIntoProcessHandle};
 
 use std::mem::size_of;
 use std::process::{exit, Child, Command};
@@ -470,7 +468,12 @@ fn create_as_child(pid: Pid) -> Option<Child> {
         .arg("422970 > steam_appid.txt")
         .spawn()
         .expect("Coudln't write steam appid");
-    let child = Some(Command::new(exe).spawn().expect("Couldn't create DD child process"));
+
+    Command::new("nohup")
+        .arg(exe)
+        .spawn()
+        .expect("Couldn't create DD child process");
+
     std::env::set_current_dir(&old_cwd).expect("Couldn't set cwd");
-    return child;
+    return None;
 }
