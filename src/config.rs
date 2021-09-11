@@ -138,6 +138,7 @@ pub struct DDStatsRustConfig {
     pub submit: Submit,
     pub discord: Discord,
     pub ui_conf: UiConf,
+    pub linux_restart_as_child: bool,
 }
 
 #[derive(Deserialize)]

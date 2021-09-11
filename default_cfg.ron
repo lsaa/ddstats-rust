@@ -7,6 +7,7 @@
     debug_logs: true,
     host: "https://ddstats.com",
     auto_clipboard: true,
+    linux_restart_as_child: true,
     stream: (
         stats: false,
         replay_stats: false,

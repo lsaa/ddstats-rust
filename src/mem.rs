@@ -7,12 +7,17 @@ extern crate winapi;
 
 use crate::consts::*;
 use core::fmt::Write;
+use std::os::unix::prelude::CommandExt;
+#[cfg(target_os = "linux")]
+use fork::{daemon, fork, Fork};
 use process_memory::{CopyAddress, ProcessHandle};
 use process_memory::{ProcessHandleExt, TryIntoProcessHandle};
 use std::cell::RefCell;
+use std::io::Read;
+use std::path::Path;
 
 use std::mem::size_of;
-use std::process::exit;
+use std::process::{exit, Child, Command};
 use std::{
     fs::File,
     io::{BufRead, BufReader},
@@ -128,6 +133,7 @@ pub struct GameConnection {
     pub handle: ProcessHandle,
     pub base_address: usize,
     pub last_fetch: Option<StatsBlockWithFrames>,
+    pub child_handle: Option<Child>,
 }
 
 impl GameConnection {
@@ -156,23 +162,38 @@ impl GameConnection {
             handle,
             base_address,
             path: proc.0,
+            child_handle: None,
             last_fetch: None,
         })
     }
 
     #[cfg(target_os = "linux")]
     pub fn try_create(process_name: &str) -> Result<Self, &str> {
+        use crate::config;
+
+        let cfg = config::CONFIG.with(|z| z.clone());
         let proc = get_proc(process_name);
         if proc.is_none() {
             return Err("Process not found");
         }
-        let proc = proc.unwrap();
-        let handle;
-        let pid = proc.1;
+        let mut proc = proc.unwrap();
+        let mut handle;
+        let mut pid = proc.1;
         if pid == 0 {
             return Err("PID is 0");
         }
         handle = pid.try_into_process_handle().unwrap();
+
+        let mut c = None;
+        if let Err(e) = handle.copy_address(0, &mut [0u8]) {
+            if e.kind() == std::io::ErrorKind::PermissionDenied && cfg.linux_restart_as_child {
+                c = create_as_child(pid);
+                proc = get_proc(process_name).unwrap();
+                pid = proc.1;
+                handle = pid.try_into_process_handle().unwrap();
+            }
+        }
+
         let base_address = get_base_address(pid);
         if base_address.is_err() {
             return Err("Couldn't get base address of process");
@@ -184,6 +205,7 @@ impl GameConnection {
             base_address,
             path: proc.0,
             last_fetch: None,
+            child_handle: c,
         })
     }
 
@@ -194,6 +216,7 @@ impl GameConnection {
             last_fetch: None,
             path: String::new(),
             handle: ProcessHandle::null_type(),
+            child_handle: None,
         }
     }
 
@@ -208,6 +231,13 @@ impl GameConnection {
                 println!("{:?}", e);
                 false
             }
+        }
+    }
+
+    pub fn is_alive_res(&self) -> Result<(), std::io::Error> {
+        match self.handle.copy_address(self.base_address, &mut [0u8]) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
         }
     }
 
@@ -417,4 +447,30 @@ impl StatsBlockWithFrames {
         }
         neg_diff as u32
     }
+}
+
+fn create_as_child(pid: Pid) -> Option<Child> {
+    let mut exe = String::new();
+    BufReader::new(File::open(format!("/proc/{}/cmdline", pid)).expect("Coudln't read cmdline"))
+        .read_to_string(&mut exe)
+        .unwrap();
+    let cwd = Path::new(&format!("/proc/{}/cwd", pid)).to_owned();
+    let mut exe = exe.chars();
+    exe.next_back();
+    let exe = exe.as_str();
+    Command::new("kill")
+        .arg(DD_PROCESS)
+        .spawn()
+        .expect("Couldn't kill current DD process");
+    let old_cwd = std::env::current_dir().expect("Couldn't save cwd");
+    std::env::set_current_dir(&cwd).expect("Coudln't set cwd");
+    Command::new("sh")
+        .arg("-c")
+        .arg("echo")
+        .arg("422970 > steam_appid.txt")
+        .spawn()
+        .expect("Coudln't write steam appid");
+    let child = Some(Command::new(exe).spawn().expect("Couldn't create DD child process"));
+    std::env::set_current_dir(&old_cwd).expect("Couldn't set cwd");
+    return child;
 }
