@@ -8,3 +8,4 @@ rm -f $PROTOC_ZIP
 
 sudo apt install xcb
 sudo apt install python3-dev
+sudo apt install build-essential
