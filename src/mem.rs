@@ -457,7 +457,7 @@ fn create_as_child(pid: Pid) -> Option<Child> {
     exe.next_back();
     let exe = exe.as_str();
     Command::new("kill")
-        .arg(DD_PROCESS)
+        .arg(format!("{}", pid))
         .spawn()
         .expect("Couldn't kill current DD process");
     let old_cwd = std::env::current_dir().expect("Couldn't save cwd");
