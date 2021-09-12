@@ -32,23 +32,37 @@ message SubmitGameRequest {
   int32 player_id = 2;
   string player_name = 3;
   string level_hash_md5 = 4;
-  float time_lvl2 = 5;
-  float time_lvl3 = 6;
-  float time_lvl4 = 7;
-  float time_levi_down = 8;
-  float time_orb_down = 9;
-  int32 enemies_alive_max = 10;
-  float enemies_alive_max_time = 11;
-  int32 homing_daggers_max = 12;
-  float homing_daggers_max_time = 13;
-  int32 death_type = 14;
-  bool is_replay = 15;
-  int32 replay_player_id = 16;
-  repeated StatsFrame frames = 17;
+  float time_max = 5;
+  float time_lvl2 = 6;
+  float time_lvl3 = 7;
+  float time_lvl4 = 8;
+  float time_levi_down = 9;
+  float time_orb_down = 10;
+  int32 gems_collected = 11;
+  int32 enemies_killed = 12;
+  int32 daggers_fired = 13;
+  int32 daggers_hit = 14;
+  int32 enemies_alive = 15;
+  int32 enemies_alive_max = 16;
+  float enemies_alive_max_time = 17;
+  int32 level_gems = 18;
+  int32 homing_daggers = 19;
+  int32 homing_daggers_max = 20;
+  float homing_daggers_max_time = 21;
+  int32 gems_total = 22;
+  int32 gems_despawned = 23;
+  int32 gems_eaten = 24;
+  int32 daggers_eaten = 25;
+  int32 death_type = 26;
+  bool is_replay = 27;
+  int32 replay_player_id = 28;
+  repeated int32 per_enemy_alive_count = 29;
+  repeated int32 per_enemy_kill_count = 30;
+  repeated StatsFrame frames = 31;
 }
 
 message SubmitGameReply {
-  uint32 res = 1;
+  uint32 game_id = 1;
 }
 
 service GameRecorder {

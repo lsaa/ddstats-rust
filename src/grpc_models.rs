@@ -47,6 +47,20 @@ impl SubmitGameRequest {
             death_type: other.death_type,
             is_replay: other.is_replay,
             replay_player_id: other.replay_player_id,
+            daggers_hit: 0,
+            daggers_fired: 0,
+            enemies_alive: 0,
+            enemies_killed: 0,
+            gems_collected: 0,
+            gems_total: 0,
+            homing_daggers: 0,
+            level_gems:0,
+            time_max: 0.,
+            daggers_eaten: 0,
+            gems_eaten: 0,
+            gems_despawned: 0,
+            per_enemy_alive_count: vec![],
+            per_enemy_kill_count: vec![],
             frames: other
                 .stats
                 .iter()

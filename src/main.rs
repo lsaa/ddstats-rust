@@ -9,16 +9,14 @@ pub mod ui;
 
 pub mod threads;
 
-use std::{
-    convert::TryFrom,
-    sync::{mpsc, Arc, RwLock},
-};
+use std::{pin::Pin, sync::{mpsc, Arc, RwLock}};
 
 use mem::StatsBlockWithFrames;
 use simple_logging::log_to_file;
 use threads::{GameClientThread, UiThread};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cfg = config::CONFIG.with(|z| z.clone());
     if cfg.debug_logs {
         log_to_file("debug_logs.txt", log::LevelFilter::Info).expect("Couldn't create logger!");
@@ -40,8 +38,12 @@ fn main() {
         game_connected_sender,
     );
 
-    let _ui_thread =
-        UiThread::create_and_start(last_poll.clone(), logs.clone(), game_connected.clone());
+    //let mut client = grpc_models::game_recorder_client::GameRecorderClient::connect(cfg.grpc_host.clone()).await.expect("Couldn't create grpc client");
+    //let res = client.client_start(grpc_models::ClientStartRequest { version: "0.6.8".to_string() }).await.expect("GAMING");
+    //log::info!("{}", res.get_ref().motd);
+
+    //let _ui_thread =
+    //    UiThread::create_and_start(last_poll.clone(), logs.clone(), game_connected.clone());
 
     loop {
         if let Ok(new_log) = log_recevicer.try_recv() {

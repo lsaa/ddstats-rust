@@ -143,13 +143,14 @@ pub enum GameDataModules {
     RunData,
     Timer,
     Gems,
-    Homing(SizeStyle), // bool: show max homing and time
+    Homing(SizeStyle), // Minimal, Compact, Full
     Kills,
     Accuracy,
-    GemsLost(SizeStyle), // bool: show the ways you lost the gems
+    GemsLost(SizeStyle), // Minimal, Compact, Full
     CollectionAccuracy,
     HomingSplits(Vec<(String, f32)>), // Vec<(String, f32)>: split times and names
     HomingUsed,
+    DaggersEaten,
     Spacing,
 }
 
@@ -174,6 +175,7 @@ impl<'a> GameDataModules {
             GameDataModules::CollectionAccuracy => create_collection_accuracy_rows(&data),
             GameDataModules::HomingSplits(times) => create_homing_splits_rows(&data, times.clone()),
             GameDataModules::HomingUsed => create_homing_used_rows(&data),
+            GameDataModules::DaggersEaten => create_daggers_eaten_rows(&data),
             GameDataModules::Spacing | _ => vec![Row::new([""])],
         }
     }
@@ -333,6 +335,15 @@ fn create_homing_used_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     .style(normal_style)]
 }
 
+fn create_daggers_eaten_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
+    vec![Row::new([
+        "DAGGERS EATEN".into(),
+        format!("{}", data.block.daggers_eaten),
+    ])
+    .style(normal_style)]
+}
+
 pub struct LeviRipple {
     pub start_time: Instant,
 }
@@ -344,7 +355,7 @@ fn char_from_intensity(intensity: u8) -> char {
     let m = (TERM_COLOR_RAMP.len() - 1) as f32 * w;
     TERM_COLOR_RAMP
         .chars()
-        .nth(m.floor().clamp(4., 10.) as usize)
+        .nth(m.floor().clamp(2., 10.) as usize)
         .unwrap()
 }
 
