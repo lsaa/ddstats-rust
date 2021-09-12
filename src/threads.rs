@@ -197,13 +197,7 @@ impl GrpcThread {
                     if res.is_ok() {
                         let res = res.as_ref().unwrap();
                         if cfg.auto_clipboard {
-                            use copypasta::ClipboardProvider;
-                            let mut clip = copypasta::ClipboardContext::new().unwrap();
-                            clip.set_contents(format!(
-                                "{}/games/{}",
-                                cfg.host,
-                                res.get_ref().game_id
-                            ));
+                            // cry
                         }
 
                         log_sender.send(format!("Submitted {}", res.get_ref().game_id));
