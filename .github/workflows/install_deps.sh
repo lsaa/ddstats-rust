@@ -6,4 +6,4 @@ sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
 sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
 rm -f $PROTOC_ZIP
 
-sudo apt install python3
+sudo apt install xcb
