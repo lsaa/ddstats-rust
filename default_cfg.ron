@@ -1,12 +1,53 @@
-// ddstats-rust config
-// Optional configurations:
-//    - ui_conf.logo: (String)
+/*
+ddstats-rust config
+    Optional configurations:
+        - ui_conf.logo: (String)
+
+|| Game Data Modules:
+    RunData
+    Timer
+    Gems
+    Homing(SizeStyle) || Minimal, Compact, Full
+    Kills
+    Accuracy
+    GemsLost(SizeStyle) || Minimal, Compact, Full
+    CollectionAccuracy
+    HomingSplits(Vec<(String, f32)>) || Vec<(String, f32)>: split times and names
+    HomingUsed
+    DaggersEaten
+    Spacing
+
+|| Style Colors
+    Reset
+    Black
+    Red
+    Green
+    Yellow
+    Blue
+    Magenta
+    Cyan
+    Gray
+    DarkGray
+    LightRed
+    LightGreen
+    LightYellow
+    LightBlue
+    LightMagenta
+    LightCyan
+    White
+    Rgb(u8, u8, u8) || Will approximate color if terminal doesn't allow
+    Indexed(u8)
+
+    Examples:
+        - Rgb(0xF7, 0xCA, 0x88) || this is the hex color #F7CA88
+
+*/
 
 (
     offline: true,
     debug_logs: true,
     host: "https://ddstats.com",
-    grpc_host: "https://172.104.11.117:80",
+    grpc_host: "http://172.104.11.117:80",
     auto_clipboard: true,
     linux_restart_as_child: true,
     stream: (
@@ -27,7 +68,8 @@
 
     // UI Config
     ui_conf: (
-        hide_logo: false,
+        enabled: true,
+        logo_style: Auto, // Off, Auto, Full, Mini
         hide_logs: false,
         orb_connection_animation: true,
         style: (
@@ -46,12 +88,9 @@
             Timer,
             Gems,
             Homing(Full), // Minimal, Compact, Full
-            Kills,
-            Accuracy,
             GemsLost(Full), // Minimal, Compact, Full
             CollectionAccuracy,
             HomingUsed,
-            DaggersEaten,
             Spacing,
             HomingSplits([ // (name, time)
                 ("Levi", 366.),

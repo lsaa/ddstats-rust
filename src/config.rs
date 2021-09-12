@@ -97,7 +97,8 @@ v0.6.8                                                                          
 
 #[derive(Deserialize)]
 pub struct UiConf {
-    pub hide_logo: bool,
+    pub enabled: bool,
+    pub logo_style: LogoStyle,
     pub hide_logs: bool,
     #[serde(default)]
     pub logo: Logo,
@@ -108,6 +109,14 @@ pub struct UiConf {
 
 #[derive(Deserialize)]
 pub struct Logo(pub String);
+
+#[derive(Deserialize, PartialEq)]
+pub enum LogoStyle {
+    Auto,
+    Mini,
+    Full,
+    Off,
+}
 
 impl std::default::Default for Logo {
     fn default() -> Self {

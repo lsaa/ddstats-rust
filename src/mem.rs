@@ -456,11 +456,13 @@ fn create_as_child(pid: Pid) -> Option<Child> {
     let mut exe = exe.chars();
     exe.next_back();
     let exe = exe.as_str();
+    log::info!("$ kill {}", pid);
     Command::new("kill")
         .arg(format!("{}", pid))
         .spawn()
         .expect("Couldn't kill current DD process");
     let old_cwd = std::env::current_dir().expect("Couldn't save cwd");
+    log::info!("$ cd {:?}", cwd.to_str());
     std::env::set_current_dir(&cwd).expect("Coudln't set cwd");
     Command::new("sh")
         .arg("-c")
@@ -468,12 +470,12 @@ fn create_as_child(pid: Pid) -> Option<Child> {
         .arg("422970 > steam_appid.txt")
         .spawn()
         .expect("Coudln't write steam appid");
-
+    log::info!("$ nohup {}", exe);
     Command::new("nohup")
         .arg(exe)
         .spawn()
         .expect("Couldn't create DD child process");
-
+    log::info!("$ cd {:?}", old_cwd.to_str());
     std::env::set_current_dir(&old_cwd).expect("Couldn't set cwd");
     return None;
 }

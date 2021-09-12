@@ -83,6 +83,9 @@ impl Client {
 
         let with_frames = self.game_connection.read_stats_block_with_frames();
         if let Ok(with_frames) = with_frames {
+            let last_frame = with_frames.frames.last();
+            if last_frame.is_none() {return;}
+            let last_frame = last_frame.unwrap();
             if with_frames.block.status == 4 && self.compiled_run.is_none() {
                 self.compiled_run = Some((
                     CompiledRun {
@@ -102,6 +105,20 @@ impl Client {
                         death_type: with_frames.block.death_type as i32,
                         is_replay: with_frames.block.is_replay,
                         replay_player_id: with_frames.block.replay_player_id,
+                        per_enemy_alive_count: last_frame.per_enemy_alive_count.clone(),
+                        per_enemy_kill_count: last_frame.per_enemy_kill_count.clone(),
+                        time_max: with_frames.block.time_max,
+                        gems_collected: last_frame.gems_collected,
+                        gems_total: last_frame.gems_total,
+                        gems_despawned: last_frame.gems_despawned,
+                        gems_eaten: last_frame.gems_eaten,
+                        daggers_eaten: last_frame.daggers_eaten,
+                        daggers_fired: last_frame.daggers_fired,
+                        daggers_hit: last_frame.daggers_hit,
+                        enemies_killed: with_frames.block.kills,
+                        enemies_alive: last_frame.enemies_alive,
+                        level_gems: last_frame.level_gems,
+                        homing_daggers: last_frame.homing,
                         stats: with_frames.frames,
                     },
                     false,
@@ -122,6 +139,7 @@ pub struct CompiledRun {
     pub player_id: i32,
     pub player_name: String,
     pub level_hash_md5: String,
+    pub time_max: f32,
     pub time_lvl2: f32,
     pub time_lvl3: f32,
     pub time_lvl4: f32,
@@ -134,6 +152,19 @@ pub struct CompiledRun {
     pub death_type: i32,
     pub is_replay: bool,
     pub replay_player_id: i32,
+    pub gems_collected: i32,
+    pub enemies_killed: i32,
+    pub enemies_alive: i32,
+    pub level_gems: i32,
+    pub homing_daggers: i32,
+    pub gems_total: i32,
+    pub gems_despawned: i32,
+    pub gems_eaten: i32,
+    pub daggers_eaten: i32,
+    pub daggers_hit: i32,
+    pub daggers_fired: i32,
+    pub per_enemy_alive_count: [i16; 17],
+    pub per_enemy_kill_count: [i16; 17],
     pub stats: Vec<StatsFrame>,
 }
 

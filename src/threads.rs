@@ -2,17 +2,24 @@
 // Thread Configs
 //
 
+use clipboard::{ClipboardContext, ClipboardProvider};
+use tokio::runtime::Handle;
+use tonic::transport::Channel;
 use tui::layout::{Constraint, Direction, Layout};
 
 use crate::{
     client::{Client, GameClientState, SubmitGameEvent},
-    config,
+    config::{self, LogoStyle},
+    consts::{LOGO_MINI, LOGO_NEW},
     mem::{GameConnection, StatsBlockWithFrames},
     ui::draw_levi,
     Conn,
 };
 use std::{
-    sync::{mpsc::Sender, Arc, RwLock},
+    sync::{
+        mpsc::{Receiver, Sender},
+        Arc, RwLock,
+    },
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
@@ -50,7 +57,6 @@ impl GameClientThread {
 
             if let Some(run_to_submit) = &client.compiled_run {
                 if !run_to_submit.1 {
-                    log_sender.send("SRE!".to_string()).expect("OK");
                     sender
                         .send(SubmitGameEvent(run_to_submit.0.clone()))
                         .expect("Couldn't use the send channel");
@@ -91,10 +97,37 @@ impl UiThread {
                     return;
                 }
 
-                if !cfg.ui_conf.hide_logo {
+                if cfg.ui_conf.logo_style != LogoStyle::Off {
+                    let max_w = LOGO_NEW.lines().fold(
+                        LOGO_NEW.lines().next().unwrap().chars().count(),
+                        |acc, x| {
+                            if x.chars().count() > acc {
+                                x.chars().count()
+                            } else {
+                                acc
+                            }
+                        },
+                    );
+
+                    let height = match cfg.ui_conf.logo_style {
+                        LogoStyle::Auto => {
+                            if layout[0].width as usize >= max_w {
+                                LOGO_NEW.lines().count()
+                            } else {
+                                LOGO_MINI.lines().count()
+                            }
+                        }
+                        LogoStyle::Mini => LOGO_MINI.lines().count(),
+                        LogoStyle::Full => LOGO_NEW.lines().count(),
+                        LogoStyle::Off => 0,
+                    };
+
                     layout = Layout::default()
                         .direction(Direction::Vertical)
-                        .constraints([Constraint::Min(12), Constraint::Percentage(100)])
+                        .constraints([
+                            Constraint::Min(height as u16 + 1),
+                            Constraint::Percentage(100),
+                        ])
                         .split(f.size());
 
                     crate::ui::draw_logo(f, layout[0]);
@@ -110,7 +143,7 @@ impl UiThread {
                 if !cfg.ui_conf.hide_logs {
                     info = Layout::default()
                         .direction(Direction::Horizontal)
-                        .constraints([Constraint::Min(28), Constraint::Percentage(100)])
+                        .constraints([Constraint::Min(20), Constraint::Percentage(100)])
                         .horizontal_margin(0)
                         .vertical_margin(0)
                         .split(layout[layout.len() - 1]);
@@ -128,6 +161,55 @@ impl UiThread {
                 thread::sleep(tick_duration - delay);
             })
             .unwrap();
+        });
+    }
+}
+
+use crate::grpc_models;
+use crate::grpc_models::game_recorder_client::GameRecorderClient;
+
+pub struct GrpcThread {
+    pub submit_recv: Receiver<SubmitGameEvent>,
+    pub client: GameRecorderClient<Channel>,
+}
+
+impl GrpcThread {
+    pub fn create_and_start(submit: Receiver<SubmitGameEvent>, log_sender: Sender<String>) {
+        let cfg = config::CONFIG.with(|z| z.clone());
+        let handle = Handle::current();
+        handle.spawn(async move {
+            let mut client = GameRecorderClient::connect(cfg.grpc_host.clone())
+                .await
+                .expect("GAMES");
+            let res = client
+                .client_start(grpc_models::ClientStartRequest {
+                    version: "0.6.8".to_string(),
+                })
+                .await
+                .expect("GAMING");
+            log::info!("MOTD {}", res.get_ref().motd);
+
+            loop {
+                let maybe = submit.try_recv();
+                if maybe.is_ok() && !cfg.offline {
+                    let compiled = maybe.unwrap();
+                    let g = grpc_models::SubmitGameRequest::from_compiled_run(compiled.0);
+                    let res = client.submit_game(g).await;
+                    if res.is_ok() {
+                        let res = res.as_ref().unwrap();
+                        if cfg.auto_clipboard {
+                            let mut clip: ClipboardContext = ClipboardProvider::new().unwrap();
+                            clip.set_contents(format!(
+                                "{}/games/{}",
+                                cfg.host,
+                                res.get_ref().game_id
+                            ));
+                        }
+
+                        log_sender.send(format!("Submitted {}", res.get_ref().game_id));
+                    }
+                }
+            }
         });
     }
 }

@@ -13,9 +13,9 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     buffer::Buffer,
     layout::{Alignment, Constraint, Corner, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Widget, Wrap},
+    widgets::{Block, Borders, List, ListItem, Row, Table, Widget},
     Frame, Terminal,
 };
 
@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 use crossterm::{event::EnableMouseCapture, execute, terminal::enable_raw_mode};
 
-use crate::{config, mem::StatsBlockWithFrames};
+use crate::{config, consts::*, mem::StatsBlockWithFrames};
 
 thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
@@ -56,24 +56,33 @@ where
     B: Backend,
 {
     let cfg = config::CONFIG.with(|c| c.clone());
-    let logo: Vec<&str> = cfg.ui_conf.logo.0.lines().collect();
-    let logo: Vec<Spans> = logo
-        .into_iter()
-        .map(|string| {
-            Spans::from(vec![Span::styled(
-                string,
-                Style::default().add_modifier(Modifier::BOLD),
-            )])
-        })
-        .collect();
 
-    let paragraph = Paragraph::new(logo)
-        .block(Block::default().borders(Borders::NONE))
-        .style(cfg.ui_conf.style.logo)
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: false });
+    let max_w = LOGO_NEW.lines().fold(
+        LOGO_NEW.lines().next().unwrap().chars().count(),
+        |acc, x| {
+            if x.chars().count() > acc {
+                x.chars().count()
+            } else {
+                acc
+            }
+        },
+    );
 
-    f.render_widget(paragraph, area);
+    let logo = match cfg.ui_conf.logo_style {
+        config::LogoStyle::Off => "".to_string(),
+        config::LogoStyle::Auto => {
+            if area.width >= max_w as u16 {
+                LOGO_NEW.to_string()
+            } else {
+                LOGO_MINI.to_string()
+            }
+        }
+        config::LogoStyle::Mini => LOGO_MINI.to_string(),
+        config::LogoStyle::Full => LOGO_NEW.to_string(),
+    };
+
+    let ascii_canvas = AsciiCanvas::new(&logo, Alignment::Center, cfg.ui_conf.style.logo);
+    f.render_widget(ascii_canvas, area);
 }
 
 pub fn draw_info_table<B>(f: &mut Frame<B>, area: Rect, last_data: &StatsBlockWithFrames)
@@ -90,7 +99,7 @@ where
     let t = Table::new(rows)
         .block(Block::default().borders(Borders::ALL).title("Game Data"))
         .widths(&[
-            Constraint::Percentage(25),
+            Constraint::Percentage(40),
             Constraint::Length(40),
             Constraint::Max(10),
         ])
@@ -211,6 +220,7 @@ fn get_homing(data: &StatsBlockWithFrames) -> u32 {
     homing as u32
 }
 
+#[allow(unreachable_patterns)]
 fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
     match style {
@@ -260,7 +270,7 @@ fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     vec![Row::new(["ACCURACY", "100.00%"]).style(normal_style)]
 }
 
-#[rustfmt::skip]
+#[rustfmt::skip] #[allow(unreachable_patterns)]
 fn create_gems_lost_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
     let total_gems_lost = data.block.gems_eaten + data.block.gems_despawned;
@@ -280,7 +290,8 @@ fn create_gems_lost_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<R
         },
         SizeStyle::Minimal => {
             vec![Row::new(["GEMS LOST".into(), gems_lost_min]).style(normal_style)]
-        }
+        },
+        _ => vec![]
     }
 }
 
@@ -505,5 +516,45 @@ impl<'a> Widget for LeviRipple {
             &Span::styled(msg, Style::default().bg(Color::Black).fg(Color::White)),
             msg.len() as u16,
         );
+    }
+}
+
+pub struct AsciiCanvas {
+    lines: Vec<String>,
+    alignment: Alignment,
+    style: Style,
+}
+
+impl AsciiCanvas {
+    pub fn new(base: &str, alignment: Alignment, style: Style) -> Self {
+        Self {
+            lines: base.lines().map(|st| st.to_string()).collect(),
+            alignment,
+            style,
+        }
+    }
+}
+
+#[rustfmt::skip]
+impl<'a> Widget for AsciiCanvas {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let max_w = self.lines.iter().fold(0, |acc, x| if x.chars().count() > acc { x.chars().count() } else { acc });
+        let max_h = self.lines.len();
+        if area.width < max_h as u16 || area.height < max_h as u16 { return; }
+
+        let left = match self.alignment {
+            Alignment::Center => (area.width / 2).saturating_sub(max_w as u16 / 2),
+            Alignment::Right => area.width.saturating_sub(max_w as u16),
+            Alignment::Left => 0,
+        };
+
+        for (y, line) in self.lines.iter().enumerate() {
+            for (x, c) in line.chars().enumerate() {
+                buf.get_mut(left + x as u16 + area.x, y as u16 + area.y)
+                    .set_symbol(c.to_string().as_str())
+                    .set_style(self.style);
+            }
+        }
+
     }
 }
