@@ -2,7 +2,6 @@
 // Thread Configs
 //
 
-use clipboard::{ClipboardContext, ClipboardProvider};
 use tokio::runtime::Handle;
 use tonic::transport::Channel;
 use tui::layout::{Constraint, Direction, Layout};
@@ -198,7 +197,8 @@ impl GrpcThread {
                     if res.is_ok() {
                         let res = res.as_ref().unwrap();
                         if cfg.auto_clipboard {
-                            let mut clip: ClipboardContext = ClipboardProvider::new().unwrap();
+                            use copypasta::ClipboardProvider;
+                            let mut clip = copypasta::ClipboardContext::new().unwrap();
                             clip.set_contents(format!(
                                 "{}/games/{}",
                                 cfg.host,

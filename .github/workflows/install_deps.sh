@@ -6,7 +6,4 @@ sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
 sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
 rm -f $PROTOC_ZIP
 
-sudo apt install xcb
-sudo apt install python3-dev
-sudo apt install build-essential
-python3 -c "print('hAAHHA')"
+sudo apt install xorg-dev
