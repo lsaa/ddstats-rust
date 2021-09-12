@@ -5,3 +5,5 @@ curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/$P
 sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
 sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
 rm -f $PROTOC_ZIP
+
+sudo apt install python3
