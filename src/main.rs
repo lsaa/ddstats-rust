@@ -9,7 +9,7 @@ pub mod ui;
 
 pub mod threads;
 
-use std::sync::{mpsc, Arc, RwLock};
+use std::{sync::{mpsc, Arc, RwLock}, time::Duration};
 
 use mem::StatsBlockWithFrames;
 use simple_logging::log_to_file;
@@ -64,6 +64,7 @@ async fn main() {
                 writer.is_ok = true;
             }
         }
+        std::thread::sleep(Duration::from_millis(20));
     }
 }
 

@@ -203,6 +203,8 @@ impl GrpcThread {
                         log_sender.send(format!("Submitted {}", res.get_ref().game_id));
                     }
                 }
+
+                std::thread::sleep(Duration::from_millis(20));
             }
         });
     }
