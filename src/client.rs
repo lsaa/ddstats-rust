@@ -105,7 +105,6 @@ impl Client {
                     && status == GameStatus::OwnReplayFromLeaderboard)
             {
                 self.submitted_data = false;
-                log::info!("NEW GAME");
             }
 
             if with_frames.block.stats_finished_loading && !self.submitted_data {
