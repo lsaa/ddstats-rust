@@ -44,7 +44,7 @@ ddstats-rust config
 */
 
 (
-    offline: true,
+    offline: false,
     debug_logs: true,
     host: "https://ddstats.com",
     grpc_host: "http://172.104.11.117:80",
@@ -56,8 +56,8 @@ ddstats-rust config
         non_default_spawnsets: false,
     ),
     submit: (
-        stats: false,
-        replay_stats: false,
+        stats: true,
+        replay_stats: true,
         non_default_spawnsets: false,
     ),
     discord: (

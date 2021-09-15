@@ -30,7 +30,11 @@ impl StatsFrame {
 
 impl SubmitGameRequest {
     pub fn from_compiled_run(other: crate::client::CompiledRun) -> Self {
-        let death_type = if other.death_type == 16 { 11 } else { other.death_type };
+        let death_type = if other.death_type == 16 {
+            11
+        } else {
+            other.death_type
+        };
         Self {
             version: other.version.clone(),
             player_id: other.player_id.clone(),

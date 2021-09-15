@@ -7,7 +7,7 @@ use tonic::transport::Channel;
 use tui::layout::{Constraint, Direction, Layout};
 
 use crate::{
-    client::{Client, GameClientState, SubmitGameEvent},
+    client::{Client, GameClientState, GameStatus, SubmitGameEvent},
     config::{self, LogoStyle},
     consts::{LOGO_MINI, LOGO_NEW},
     mem::{GameConnection, StatsBlockWithFrames},
@@ -41,6 +41,8 @@ impl GameClientThread {
             game_state: GameClientState::NotConnected,
             last_game_update: Instant::now(),
             compiled_run: None,
+            last_game_state: GameStatus::Title,
+            submitted_data: false,
             log_sender: log_sender.clone(),
             conn: (game_conneceted, game_disconnected),
         };
@@ -55,12 +57,10 @@ impl GameClientThread {
             }
 
             if let Some(run_to_submit) = &client.compiled_run {
-                if !run_to_submit.1 {
-                    sender
-                        .send(SubmitGameEvent(run_to_submit.0.clone()))
-                        .expect("Couldn't use the send channel");
-                    client.compiled_run = Some((run_to_submit.0.clone(), true));
-                }
+                sender
+                    .send(SubmitGameEvent(run_to_submit.clone()))
+                    .expect("Couldn't use the send channel");
+                client.compiled_run = None;
             }
         });
 
@@ -201,6 +201,7 @@ impl GrpcThread {
                         }
 
                         log_sender.send(format!("Submitted {}", res.get_ref().game_id));
+                        log::info!("SUBMIT");
                     }
                 }
 

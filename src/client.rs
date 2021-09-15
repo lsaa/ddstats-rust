@@ -5,9 +5,13 @@ use std::{
 };
 
 use crate::{
-    consts::{DD_PROCESS, VERSION},
+    config,
+    consts::{DD_PROCESS, V3_SURVIVAL_HASH, VERSION},
     mem::{GameConnection, StatsFrame},
 };
+
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 #[derive(PartialEq, Debug)]
 pub enum GameClientState {
@@ -20,7 +24,9 @@ pub struct Client {
     pub game_connection: GameConnection,
     pub game_state: GameClientState,
     pub last_game_update: Instant,
-    pub compiled_run: Option<(CompiledRun, bool)>,
+    pub last_game_state: GameStatus,
+    pub submitted_data: bool,
+    pub compiled_run: Option<CompiledRun>,
     pub log_sender: Sender<String>,
     pub conn: (Sender<bool>, Sender<bool>),
 }
@@ -81,16 +87,52 @@ impl Client {
             return;
         }
 
+        let cfg = config::CONFIG.with(|z| z.clone());
+
         let with_frames = self.game_connection.read_stats_block_with_frames();
         if let Ok(with_frames) = with_frames {
             let last_frame = with_frames.frames.last();
-            if last_frame.is_none() {return;}
+            if last_frame.is_none() {
+                return;
+            }
             let last_frame = last_frame.unwrap();
-            if with_frames.block.status == 4 && self.compiled_run.is_none() {
-                self.compiled_run = Some((
-                    CompiledRun {
+            let status: GameStatus = FromPrimitive::from_i32(with_frames.block.status).unwrap();
+            let old = self.last_game_state;
+
+            if status == GameStatus::Playing
+                || (old != GameStatus::OtherReplay && status == GameStatus::OtherReplay)
+                || (old != GameStatus::OwnReplayFromLeaderboard
+                    && status == GameStatus::OwnReplayFromLeaderboard)
+            {
+                self.submitted_data = false;
+                log::info!("NEW GAME");
+            }
+
+            if with_frames.block.stats_finished_loading && !self.submitted_data {
+                if status == GameStatus::Dead
+                    || status == GameStatus::OtherReplay
+                    || status == GameStatus::OwnReplayFromLeaderboard
+                {
+                    let mut player_id = with_frames.block.player_id;
+                    let mut replay_player_id = with_frames.block.replay_player_id;
+
+                    if with_frames.block.is_replay {
+                        player_id = with_frames.block.replay_player_id;
+                        replay_player_id = with_frames.block.player_id;
+                    }
+
+                    if (with_frames.block.is_replay && !cfg.submit.replay_stats)
+                        || (!with_frames.block.is_replay && !cfg.submit.stats)
+                        || (!with_frames.block.level_hash().eq(V3_SURVIVAL_HASH)
+                            && !cfg.submit.non_default_spawnsets)
+                    {
+                        self.last_game_state = status;
+                        return;
+                    }
+
+                    self.compiled_run = Some(CompiledRun {
                         version: VERSION.to_owned(),
-                        player_id: with_frames.block.player_id,
+                        player_id,
                         player_name: with_frames.block.player_username(),
                         level_hash_md5: with_frames.block.level_hash(),
                         time_lvl2: with_frames.block.time_lvl2,
@@ -104,7 +146,7 @@ impl Client {
                         homing_daggers_max_time: with_frames.block.time_max_homing,
                         death_type: with_frames.block.death_type as i32,
                         is_replay: with_frames.block.is_replay,
-                        replay_player_id: with_frames.block.replay_player_id,
+                        replay_player_id,
                         per_enemy_alive_count: last_frame.per_enemy_alive_count.clone(),
                         per_enemy_kill_count: last_frame.per_enemy_kill_count.clone(),
                         time_max: with_frames.block.time_max,
@@ -120,21 +162,19 @@ impl Client {
                         level_gems: last_frame.level_gems,
                         homing_daggers: last_frame.homing,
                         stats: with_frames.frames,
-                    },
-                    false,
-                ));
+                    });
+
+                    self.submitted_data = true;
+                }
             }
 
-            if with_frames.block.status != 4 && self.compiled_run.is_some() {
-                self.compiled_run = None;
-            }
+            self.last_game_state = status;
         }
     }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct CompiledRun {
-    // fuck you VHS for not making the server code public
     pub version: String,
     pub player_id: i32,
     pub player_name: String,
@@ -166,6 +206,18 @@ pub struct CompiledRun {
     pub per_enemy_alive_count: [i16; 17],
     pub per_enemy_kill_count: [i16; 17],
     pub stats: Vec<StatsFrame>,
+}
+
+#[derive(FromPrimitive, Debug, PartialEq, Clone, Copy)]
+pub enum GameStatus {
+    Title = 0,
+    Menu,
+    Lobby,
+    Playing,
+    Dead,
+    OwnReplayFromLastRun,
+    OwnReplayFromLeaderboard,
+    OtherReplay,
 }
 
 pub struct SubmitGameEvent(pub CompiledRun);

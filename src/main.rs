@@ -9,7 +9,10 @@ pub mod ui;
 
 pub mod threads;
 
-use std::{sync::{mpsc, Arc, RwLock}, time::Duration};
+use std::{
+    sync::{mpsc, Arc, RwLock},
+    time::Duration,
+};
 
 use mem::StatsBlockWithFrames;
 use simple_logging::log_to_file;
