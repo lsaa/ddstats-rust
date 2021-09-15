@@ -81,6 +81,7 @@ impl UiThread {
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
         thread::spawn(move || loop {
+            log::info!("UI UPDATED");
             let start_time = Instant::now();
             let read_data = latest_data.read().expect("Couldn't read last data");
             let log_list = logs.read().expect("Poisoned logs!").clone();
