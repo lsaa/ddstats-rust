@@ -192,6 +192,7 @@ impl GrpcThread {
                 let maybe = submit.try_recv();
                 if maybe.is_ok() && !cfg.offline {
                     let compiled = maybe.unwrap();
+                    log::info!("{:#?}", compiled.0);
                     let g = grpc_models::SubmitGameRequest::from_compiled_run(compiled.0);
                     let res = client.submit_game(g).await;
                     if res.is_ok() {
