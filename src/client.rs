@@ -112,6 +112,7 @@ impl Client {
                     || status == GameStatus::OtherReplay
                     || status == GameStatus::OwnReplayFromLeaderboard
                 {
+                    log::info!("SUBBBMITTT");
                     let mut player_id = with_frames.block.player_id;
                     let mut replay_player_id = with_frames.block.replay_player_id;
 
