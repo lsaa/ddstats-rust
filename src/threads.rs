@@ -153,6 +153,7 @@ impl UiThread {
                 crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
             })
             .unwrap();
+            crate::utils::sleep(Duration::from_millis(5));
         });
     }
 }
@@ -205,6 +206,7 @@ impl GrpcThread {
                         log::error!("Failed to submit!! {:?}", res);
                     }
                 }
+                crate::utils::sleep(Duration::from_millis(20));
             }
         });
     }

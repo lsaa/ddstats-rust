@@ -67,7 +67,7 @@ async fn main() {
                 writer.is_ok = true;
             }
         }
-        std::thread::sleep(Duration::from_millis(20));
+        utils::sleep(Duration::from_millis(30));
     }
 }
 
