@@ -30,7 +30,8 @@ fn create_timer() -> winapi::um::winnt::HANDLE {
 
 #[cfg(target_os = "windows")]
 pub fn sleep(d: Duration) {
-    spin_sleep::sleep(d);
+    let spin_sleeper = spin_sleep::SpinSleeper::new(100_000);
+    spin_sleeper.sleep(d);
 
     /*unsafe {
         use std::ptr::null_mut;
