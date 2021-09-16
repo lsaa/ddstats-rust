@@ -2,6 +2,7 @@
 // Thread Configs
 //
 
+use regex::internal::Inst;
 use tokio::runtime::Handle;
 use tonic::transport::Channel;
 use tui::layout::{Constraint, Direction, Layout};
@@ -75,8 +76,12 @@ impl UiThread {
         let tick_duration = Duration::from_secs_f32(1. / 14.);
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
+        let mut last_update = Instant::now();
         thread::spawn(move || loop {
-            let start_time = Instant::now();
+            if last_update.elapsed() < tick_duration {
+                continue;
+            }
+            last_update = Instant::now();
             let read_data = latest_data.read().expect("Couldn't read last data");
             let log_list = logs.read().expect("Poisoned logs!").clone();
 
@@ -148,13 +153,6 @@ impl UiThread {
                 crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
             })
             .unwrap();
-
-            let delay = if start_time.elapsed() > tick_duration {
-                Duration::ZERO
-            } else {
-                Instant::now() - start_time
-            };
-            thread::sleep(tick_duration - delay);
         });
     }
 }
@@ -171,6 +169,7 @@ impl GrpcThread {
     pub fn create_and_start(submit: Receiver<SubmitGameEvent>, log_sender: Sender<String>) {
         let cfg = config::CONFIG.with(|z| z.clone());
         let handle = Handle::current();
+        let mut last_update = Instant::now();
         handle.spawn(async move {
             let mut client = GameRecorderClient::connect(cfg.grpc_host.clone())
                 .await
@@ -184,6 +183,10 @@ impl GrpcThread {
             log::info!("MOTD {}", res.get_ref().motd);
 
             loop {
+                if last_update.elapsed() < Duration::from_millis(20) {
+                    continue;
+                }
+                last_update = Instant::now();
                 let maybe = submit.try_recv();
                 if maybe.is_ok() && !cfg.offline {
                     log::info!("Got into ClientSubmitReq");
@@ -202,8 +205,6 @@ impl GrpcThread {
                         log::error!("Failed to submit!! {:?}", res);
                     }
                 }
-
-                std::thread::sleep(Duration::from_millis(20));
             }
         });
     }
