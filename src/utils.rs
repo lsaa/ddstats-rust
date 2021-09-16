@@ -2,6 +2,7 @@
 // cool
 //
 
+#[allow(unused_imports)]
 use std::cell::RefCell;
 use std::time::Duration;
 
@@ -30,8 +31,7 @@ pub fn sleep(d: Duration) {
     unsafe {
         use std::ptr::null_mut;
         let mut li: winapi::shared::ntdef::LARGE_INTEGER = std::mem::zeroed();
-        *li.QuadPart_mut() =
-            -(d.as_nanos() as i64) as winapi::ctypes::__int64 as winapi::shared::ntdef::LONGLONG;
+        *li.QuadPart_mut() = -(d.as_nanos() as i64 / 100) as winapi::ctypes::__int64 as winapi::shared::ntdef::LONGLONG;
         TIMER_HANDLE.with(|timer| {
             let mut timer = timer.borrow_mut();
             let created_timer = winapi::um::synchapi::SetWaitableTimer(

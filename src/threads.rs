@@ -2,7 +2,6 @@
 // Thread Configs
 //
 
-use regex::internal::Inst;
 use tokio::runtime::Handle;
 use tonic::transport::Channel;
 use tui::layout::{Constraint, Direction, Layout};
@@ -82,6 +81,7 @@ impl UiThread {
         let mut term = crate::ui::create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
+        let mut last = Instant::now();
         let tick = Duration::from_secs_f32(1. / 14.);
         thread::spawn(move || loop {
             let now = Instant::now();
@@ -160,6 +160,8 @@ impl UiThread {
             if d > tick {
                 d = tick.clone();
             }
+            log::info!("{:?}", last);
+            last = Instant::now();
             crate::utils::sleep(tick - d);
         });
     }
