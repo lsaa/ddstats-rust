@@ -29,6 +29,8 @@ pub struct Client {
     pub compiled_run: Option<CompiledRun>,
     pub log_sender: Sender<String>,
     pub conn: (Sender<bool>, Sender<bool>),
+    pub connecting_start: Instant,
+    pub sender: Sender<SubmitGameEvent>
 }
 
 impl Client {
@@ -60,7 +62,9 @@ impl Client {
         if let Ok(game) = GameConnection::try_create(DD_PROCESS) {
             self.game_state = GameClientState::Connecting;
             self.game_connection = game;
+            self.connecting_start = Instant::now()
         } else {
+            log::info!("Coudln't connect;");
             thread::sleep(Duration::from_secs(3));
         }
     }
@@ -68,6 +72,11 @@ impl Client {
     fn connecting(&mut self) {
         if !self.resolve_connection() {
             return;
+        }
+
+        if self.connecting_start.elapsed() > Duration::from_secs(2) {
+            self.game_state = GameClientState::NotConnected;
+            self.game_connection = GameConnection::dead_connection();
         }
 
         match self.game_connection.read_stats_block() {
@@ -107,12 +116,17 @@ impl Client {
                 self.submitted_data = false;
             }
 
+            if status == GameStatus::Dead && old != GameStatus::Dead {
+                // YOU DIED HHAHAHAHAHA
+                log::info!("DEATH {} {}", self.submitted_data, with_frames.block.stats_finished_loading);
+            }
+
+
             if with_frames.block.stats_finished_loading && !self.submitted_data {
                 if status == GameStatus::Dead
                     || status == GameStatus::OtherReplay
                     || status == GameStatus::OwnReplayFromLeaderboard
                 {
-                    log::info!("SUBBBMITTT");
                     let mut player_id = with_frames.block.player_id;
                     let mut replay_player_id = with_frames.block.replay_player_id;
 
@@ -120,7 +134,7 @@ impl Client {
                         player_id = with_frames.block.replay_player_id;
                         replay_player_id = with_frames.block.player_id;
                     }
-
+                    /*
                     if (with_frames.block.is_replay && !cfg.submit.replay_stats)
                         || (!with_frames.block.is_replay && !cfg.submit.stats)
                         || (!with_frames.block.level_hash().eq(V3_SURVIVAL_HASH)
@@ -129,7 +143,8 @@ impl Client {
                         self.last_game_state = status;
                         return;
                     }
-
+                    */
+                    log::info!("I am submit?");
                     self.compiled_run = Some(CompiledRun {
                         version: VERSION.to_owned(),
                         player_id,
@@ -163,6 +178,9 @@ impl Client {
                         homing_daggers: last_frame.homing,
                         stats: with_frames.frames,
                     });
+
+                    self.sender.send(SubmitGameEvent(self.compiled_run.as_ref().unwrap().clone())).expect("FUNNY SENDER");
+
 
                     self.submitted_data = true;
                 }

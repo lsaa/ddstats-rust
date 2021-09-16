@@ -45,6 +45,8 @@ impl GameClientThread {
             submitted_data: false,
             log_sender: log_sender.clone(),
             conn: (game_conneceted, game_disconnected),
+            connecting_start: Instant::now(),
+            sender
         };
 
         let join_handle = thread::spawn(move || loop {
@@ -54,13 +56,6 @@ impl GameClientThread {
                 if let Ok(mut writer) = last_poll.write() {
                     writer.clone_from(data);
                 }
-            }
-
-            if let Some(run_to_submit) = &client.compiled_run {
-                sender
-                    .send(SubmitGameEvent(run_to_submit.clone()))
-                    .expect("Couldn't use the send channel");
-                client.compiled_run = None;
             }
         });
 
@@ -192,7 +187,6 @@ impl GrpcThread {
                 let maybe = submit.try_recv();
                 if maybe.is_ok() && !cfg.offline {
                     let compiled = maybe.unwrap();
-                    log::info!("{:#?}", compiled.0);
                     let g = grpc_models::SubmitGameRequest::from_compiled_run(compiled.0);
                     let res = client.submit_game(g).await;
                     if res.is_ok() {

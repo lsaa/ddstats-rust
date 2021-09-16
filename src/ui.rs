@@ -229,7 +229,7 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
                 "HOMING".into(),
                 format!(
                     "{} [MAX {} at {:.4}s]",
-                    data.block.homing, data.block.max_homing, data.block.time_max_homing
+                    data.block.homing, data.block.stats_finished_loading, data.block.time_max_homing
                 ),
             ])
             .style(normal_style)]
