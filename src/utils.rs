@@ -8,6 +8,8 @@ use std::time::Duration;
 
 #[cfg(windows)]
 extern crate winapi;
+#[cfg(windows)]
+extern crate spin_sleep;
 
 thread_local! {
     #[cfg(target_os = "windows")]
@@ -28,7 +30,9 @@ fn create_timer() -> winapi::um::winnt::HANDLE {
 
 #[cfg(target_os = "windows")]
 pub fn sleep(d: Duration) {
-    unsafe {
+    spin_sleep::sleep(d);
+
+    /*unsafe {
         use std::ptr::null_mut;
         let mut li: winapi::shared::ntdef::LARGE_INTEGER = std::mem::zeroed();
         *li.QuadPart_mut() = -(d.as_nanos() as i64 / 100) as winapi::ctypes::__int64 as winapi::shared::ntdef::LONGLONG;
@@ -45,7 +49,7 @@ pub fn sleep(d: Duration) {
 
             winapi::um::synchapi::WaitForSingleObject(timer.clone(), winapi::um::winbase::INFINITE);
         });
-    }
+    }*/
 }
 
 #[cfg(target_os = "linux")]

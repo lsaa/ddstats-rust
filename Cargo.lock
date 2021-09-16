@@ -183,6 +183,7 @@ dependencies = [
  "scan_fmt",
  "serde",
  "simple-logging",
+ "spin_sleep",
  "sysinfo",
  "tokio",
  "tonic",
@@ -1004,6 +1005,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "765f090f0e423d2b55843402a07915add955e7d60657db13707a159727326cad"
 dependencies = [
  "libc",
+ "winapi",
+]
+
+[[package]]
+name = "spin_sleep"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a98101bdc3833e192713c2af0b0dd2614f50d1cf1f7a97c5221b7aac052acc7"
+dependencies = [
+ "once_cell",
  "winapi",
 ]
 
