@@ -35,14 +35,10 @@ pub struct Client {
 
 impl Client {
     pub fn game_loop(&mut self) {
-        if Instant::now().duration_since(self.last_game_update) > Duration::from_secs_f32(1. / 36.)
-        {
-            self.last_game_update = Instant::now();
-            match self.game_state {
-                GameClientState::NotConnected => self.not_connected(),
-                GameClientState::Connecting => self.connecting(),
-                GameClientState::Connected => self.connected(),
-            }
+        match self.game_state {
+            GameClientState::NotConnected => self.not_connected(),
+            GameClientState::Connecting => self.connecting(),
+            GameClientState::Connected => self.connected(),
         }
     }
 

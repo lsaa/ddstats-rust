@@ -50,7 +50,9 @@ impl GameClientThread {
             sender,
         };
 
+        let tick = Duration::from_secs_f32(1. / 36.);
         let join_handle = thread::spawn(move || loop {
+            let now = Instant::now();
             client.game_loop();
 
             if let Some(data) = &client.game_connection.last_fetch {
@@ -58,6 +60,11 @@ impl GameClientThread {
                     writer.clone_from(data);
                 }
             }
+            let mut d = now.elapsed();
+            if d > tick {
+                d = tick.clone();
+            }
+            crate::utils::sleep(tick - d);
         });
 
         Self { join_handle }
@@ -73,15 +80,11 @@ impl UiThread {
         connected: ArcRw<Conn>,
     ) {
         let mut term = crate::ui::create_term();
-        let tick_duration = Duration::from_secs_f32(1. / 14.);
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
-        let mut last_update = Instant::now();
+        let tick = Duration::from_secs_f32(1. / 14.);
         thread::spawn(move || loop {
-            if last_update.elapsed() < tick_duration {
-                continue;
-            }
-            last_update = Instant::now();
+            let now = Instant::now();
             let read_data = latest_data.read().expect("Couldn't read last data");
             let log_list = logs.read().expect("Poisoned logs!").clone();
 
@@ -153,7 +156,11 @@ impl UiThread {
                 crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
             })
             .unwrap();
-            crate::utils::sleep(Duration::from_millis(5));
+            let mut d = now.elapsed();
+            if d > tick {
+                d = tick.clone();
+            }
+            crate::utils::sleep(tick - d);
         });
     }
 }

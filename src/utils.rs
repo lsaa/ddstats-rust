@@ -16,7 +16,8 @@ thread_local! {
 #[cfg(target_os = "windows")]
 fn create_timer() -> winapi::um::winnt::HANDLE {
     use std::ptr::null_mut;
-    unsafe { winapi::um::synchapi::CreateWaitableTimerW(
+    unsafe {
+        winapi::um::synchapi::CreateWaitableTimerW(
             null_mut(),
             true as winapi::shared::minwindef::BOOL,
             null_mut(),
