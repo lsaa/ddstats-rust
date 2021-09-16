@@ -46,7 +46,7 @@ impl GameClientThread {
             log_sender: log_sender.clone(),
             conn: (game_conneceted, game_disconnected),
             connecting_start: Instant::now(),
-            sender
+            sender,
         };
 
         let join_handle = thread::spawn(move || loop {
@@ -72,7 +72,7 @@ impl UiThread {
         connected: ArcRw<Conn>,
     ) {
         let mut term = crate::ui::create_term();
-        let tick_duration = Duration::from_secs_f32(1. / 7.);
+        let tick_duration = Duration::from_secs_f32(1. / 14.);
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
         thread::spawn(move || loop {
@@ -146,15 +146,15 @@ impl UiThread {
                 }
 
                 crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
-
-                let delay = if start_time.elapsed() > tick_duration {
-                    Duration::ZERO
-                } else {
-                    Instant::now() - start_time
-                };
-                thread::sleep(tick_duration - delay);
             })
             .unwrap();
+
+            let delay = if start_time.elapsed() > tick_duration {
+                Duration::ZERO
+            } else {
+                Instant::now() - start_time
+            };
+            thread::sleep(tick_duration - delay);
         });
     }
 }
@@ -186,6 +186,7 @@ impl GrpcThread {
             loop {
                 let maybe = submit.try_recv();
                 if maybe.is_ok() && !cfg.offline {
+                    log::info!("Got into ClientSubmitReq");
                     let compiled = maybe.unwrap();
                     let g = grpc_models::SubmitGameRequest::from_compiled_run(compiled.0);
                     let res = client.submit_game(g).await;
@@ -197,6 +198,8 @@ impl GrpcThread {
 
                         log_sender.send(format!("Submitted {}", res.get_ref().game_id));
                         log::info!("SUBMIT");
+                    } else {
+                        log::error!("Failed to submit!! {:?}", res);
                     }
                 }
 

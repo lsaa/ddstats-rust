@@ -30,7 +30,7 @@ pub struct Client {
     pub log_sender: Sender<String>,
     pub conn: (Sender<bool>, Sender<bool>),
     pub connecting_start: Instant,
-    pub sender: Sender<SubmitGameEvent>
+    pub sender: Sender<SubmitGameEvent>,
 }
 
 impl Client {
@@ -118,9 +118,12 @@ impl Client {
 
             if status == GameStatus::Dead && old != GameStatus::Dead {
                 // YOU DIED HHAHAHAHAHA
-                log::info!("DEATH {} {}", self.submitted_data, with_frames.block.stats_finished_loading);
+                log::info!(
+                    "DEATH {} {}",
+                    self.submitted_data,
+                    with_frames.block.stats_finished_loading
+                );
             }
-
 
             if with_frames.block.stats_finished_loading && !self.submitted_data {
                 if status == GameStatus::Dead
@@ -179,8 +182,9 @@ impl Client {
                         stats: with_frames.frames,
                     });
 
-                    self.sender.send(SubmitGameEvent(self.compiled_run.as_ref().unwrap().clone())).expect("FUNNY SENDER");
-
+                    self.sender
+                        .send(SubmitGameEvent(self.compiled_run.as_ref().unwrap().clone()))
+                        .expect("FUNNY SENDER");
 
                     self.submitted_data = true;
                 }
