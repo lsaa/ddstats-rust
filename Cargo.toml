@@ -1,9 +1,14 @@
+cargo-features = ["strip"]
+
 [package]
 name = "ddstats-rust"
 version = "0.6.8"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
 
 [dependencies]
 process-memory = "0.4.0"

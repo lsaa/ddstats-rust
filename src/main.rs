@@ -14,7 +14,6 @@ extern crate winapi;
 
 use std::{
     sync::{mpsc, Arc, RwLock},
-    time::Duration,
 };
 
 use mem::StatsBlockWithFrames;

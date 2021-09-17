@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     config,
-    consts::{DD_PROCESS, V3_SURVIVAL_HASH, VERSION},
+    consts::{DD_PROCESS, VERSION},
     mem::{GameConnection, StatsFrame},
 };
 
@@ -92,7 +92,7 @@ impl Client {
             return;
         }
 
-        let cfg = config::CONFIG.with(|z| z.clone());
+        let _cfg = config::CONFIG.with(|z| z.clone());
 
         let with_frames = self.game_connection.read_stats_block_with_frames();
         if let Ok(with_frames) = with_frames {
