@@ -43,7 +43,7 @@ async fn main() {
         log_sender.clone(),
         game_disconnected_sender,
         game_connected_sender,
-    );
+    ).await;
 
     if cfg.ui_conf.enabled {
         let _ui_thread =

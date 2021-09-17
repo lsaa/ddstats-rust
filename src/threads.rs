@@ -21,24 +21,22 @@ use std::{
         mpsc::{Receiver, Sender},
         Arc, RwLock,
     },
-    thread::{self, JoinHandle},
-    time::Instant,
+    thread,
+    time::{Duration, Instant},
 };
 
 /* Game Poll Thread */
-pub struct GameClientThread {
-    pub join_handle: JoinHandle<()>,
-}
+pub struct GameClientThread {}
 
 impl GameClientThread {
-    pub fn create_and_start(
+    pub async fn create_and_start(
         last_poll: ArcRw<StatsBlockWithFrames>,
         sender: Sender<SubmitGameEvent>,
         log_sender: Sender<String>,
         game_disconnected: Sender<bool>,
         game_conneceted: Sender<bool>,
-    ) -> Self {
-        let mut client = Client {
+    ) {
+        let mut c = Client {
             game_connection: GameConnection::dead_connection(),
             game_state: GameClientState::NotConnected,
             last_game_update: Instant::now(),
@@ -51,23 +49,20 @@ impl GameClientThread {
             sender,
         };
 
-        let mut loop_helper = LoopHelper::builder()
-            .report_interval_s(0.5)
-            .build_with_target_rate(36.0);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 36.));
 
-        let join_handle = thread::spawn(move || loop {
-            let _delta = loop_helper.loop_start();
-            client.game_loop();
+            loop {
+                interval.tick().await;
+                c.game_loop();
 
-            if let Some(data) = &client.game_connection.last_fetch {
-                if let Ok(mut writer) = last_poll.write() {
-                    writer.clone_from(data);
+                if let Some(data) = &c.game_connection.last_fetch {
+                    if let Ok(mut writer) = last_poll.write() {
+                        writer.clone_from(data);
+                    }
                 }
             }
-            loop_helper.loop_sleep();
         });
-
-        Self { join_handle }
     }
 }
 
@@ -82,12 +77,10 @@ impl UiThread {
         let mut term = crate::ui::create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
-        let mut loop_helper = LoopHelper::builder()
-            .report_interval_s(0.5)
-            .build_with_target_rate(14.0);
-
-        thread::spawn(move || loop {
-            let _delta = loop_helper.loop_start();
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1./20.));
+        let mut last_time = Instant::now();
+        tokio::spawn(async move { loop {
+            interval.tick().await;
             let read_data = latest_data.read().expect("Couldn't read last data");
             let log_list = logs.read().expect("Poisoned logs!").clone();
 
@@ -159,8 +152,7 @@ impl UiThread {
                 crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
             })
             .unwrap();
-            loop_helper.loop_sleep();
-        });
+        }});
     }
 }
 
