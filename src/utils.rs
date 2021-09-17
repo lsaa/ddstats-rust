@@ -11,11 +11,7 @@ extern crate spin_sleep;
 #[cfg(windows)]
 extern crate winapi;
 
-thread_local! {
-    #[cfg(target_os = "windows")]
-    static TIMER_HANDLE: RefCell<winapi::um::winnt::HANDLE> = RefCell::new(create_timer());
-}
-
+/*
 #[cfg(target_os = "windows")]
 fn create_timer() -> winapi::um::winnt::HANDLE {
     use std::ptr::null_mut;
@@ -27,6 +23,7 @@ fn create_timer() -> winapi::um::winnt::HANDLE {
         )
     }
 }
+*/
 
 #[cfg(target_os = "windows")]
 pub fn sleep(d: Duration) {
