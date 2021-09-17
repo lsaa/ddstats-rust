@@ -2,7 +2,7 @@
 // Thread Configs
 //
 
-use spin_sleep::{LoopHelper};
+use spin_sleep::LoopHelper;
 use tokio::runtime::Handle;
 use tonic::transport::Channel;
 use tui::layout::{Constraint, Direction, Layout};
@@ -22,7 +22,7 @@ use std::{
         Arc, RwLock,
     },
     thread::{self, JoinHandle},
-    time::{Instant},
+    time::Instant,
 };
 
 /* Game Poll Thread */
@@ -206,7 +206,9 @@ impl GrpcThread {
                             // cry
                         }
 
-                        log_sender.send(format!("Submitted {}", res.get_ref().game_id)).expect("FUNNY");
+                        log_sender
+                            .send(format!("Submitted {}", res.get_ref().game_id))
+                            .expect("FUNNY");
                         log::info!("SUBMIT");
                     } else {
                         log::error!("Failed to submit!! {:?}", res);

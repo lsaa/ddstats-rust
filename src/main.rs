@@ -12,9 +12,7 @@ pub mod threads;
 #[cfg(windows)]
 extern crate winapi;
 
-use std::{
-    sync::{mpsc, Arc, RwLock},
-};
+use std::sync::{mpsc, Arc, RwLock};
 
 use mem::StatsBlockWithFrames;
 use simple_logging::log_to_file;
@@ -88,13 +86,13 @@ fn setup() {
     use winapi::ctypes::c_uint;
     use winapi::shared::minwindef::UINT;
 
-    unsafe { winapi::um::timeapi::timeBeginPeriod(5 as c_uint as UINT); }
+    unsafe {
+        winapi::um::timeapi::timeBeginPeriod(5 as c_uint as UINT);
+    }
 }
 
 #[cfg(target_os = "linux")]
-fn setup() {
-
-}
+fn setup() {}
 
 pub struct Conn {
     pub is_ok: bool,

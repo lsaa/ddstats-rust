@@ -9,8 +9,6 @@ use crate::consts::*;
 use core::fmt::Write;
 use std::cell::RefCell;
 
-
-
 use process_memory::{CopyAddress, ProcessHandle};
 use process_memory::{ProcessHandleExt, TryIntoProcessHandle};
 
@@ -76,8 +74,11 @@ fn is_elf(start_bytes: &[u8; 4]) -> bool {
 
 #[cfg(target_os = "linux")]
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
-    use std::{fs::File, io::{BufRead, BufReader}};
     use scan_fmt::scan_fmt;
+    use std::{
+        fs::File,
+        io::{BufRead, BufReader},
+    };
 
     let f = BufReader::new(File::open(format!("/proc/{}/maps", pid))?);
     let handle = pid.try_into_process_handle().expect(":::");
@@ -448,7 +449,12 @@ impl StatsBlockWithFrames {
 
 #[cfg(target_os = "linux")]
 fn create_as_child(pid: Pid) -> Option<Child> {
-    use std::{fs::File, io::{BufReader, Read}, path::Path, process::Command};
+    use std::{
+        fs::File,
+        io::{BufReader, Read},
+        path::Path,
+        process::Command,
+    };
 
     let mut exe = String::new();
     BufReader::new(File::open(format!("/proc/{}/cmdline", pid)).expect("Coudln't read cmdline"))
