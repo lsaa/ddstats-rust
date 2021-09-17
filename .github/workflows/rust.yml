@@ -21,15 +21,14 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
             target: x86_64-unknown-linux-gnu
-            toolchain: stable
+            toolchain: nightly
             override: true
       - name: Install latest rust (windows)
         uses: actions-rs/toolchain@v1
         with:
             target: x86_64-pc-windows-gnu
-            toolchain: stable
+            toolchain: nightly
             override: true
-
       - uses: actions-rs/cargo@v1
         with:
           use-cross: true
