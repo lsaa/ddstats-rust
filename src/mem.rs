@@ -8,18 +8,15 @@ extern crate winapi;
 use crate::consts::*;
 use core::fmt::Write;
 use std::cell::RefCell;
-use std::io::Read;
-use std::path::Path;
+
+
 
 use process_memory::{CopyAddress, ProcessHandle};
 use process_memory::{ProcessHandleExt, TryIntoProcessHandle};
 
 use std::mem::size_of;
-use std::process::{exit, Child, Command};
-use std::{
-    fs::File,
-    io::{BufReader},
-};
+use std::process::{exit, Child};
+
 use sysinfo::{Pid, ProcessExt, System, SystemExt};
 
 pub const DATA_BLOCK_SIZE: usize = size_of::<StatsDataBlock>();
@@ -119,7 +116,7 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
     };
 
     let mut me = winapi::um::tlhelp32::MODULEENTRY32::default();
-    me.dwSize = unsafe { size_of_val(&me) as c_ulong as winapi::shared::minwindef::DWORD };
+    me.dwSize = size_of_val(&me) as c_ulong as winapi::shared::minwindef::DWORD;
     unsafe {
         winapi::um::tlhelp32::Module32First(snapshot, &mut me);
     }
