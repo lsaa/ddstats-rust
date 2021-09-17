@@ -330,7 +330,7 @@ impl GameConnection {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct StatsDataBlock {
     pub ddstats_version: i32,
     pub player_id: i32,
@@ -402,7 +402,7 @@ impl StatsDataBlock {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
 pub struct StatsFrame {
     pub gems_collected: i32,
     pub kills: i32,
@@ -419,7 +419,7 @@ pub struct StatsFrame {
     pub per_enemy_kill_count: [i16; 17],
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, serde::Serialize)]
 pub struct StatsBlockWithFrames {
     pub block: StatsDataBlock,
     pub frames: Vec<StatsFrame>,

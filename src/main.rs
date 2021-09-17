@@ -9,6 +9,9 @@ pub mod ui;
 
 pub mod threads;
 
+#[cfg(windows)]
+extern crate winapi;
+
 use std::{
     sync::{mpsc, Arc, RwLock},
     time::Duration,
@@ -16,10 +19,12 @@ use std::{
 
 use mem::StatsBlockWithFrames;
 use simple_logging::log_to_file;
-use threads::{GameClientThread, GrpcThread, UiThread};
+use spin_sleep::LoopHelper;
+use threads::{GameClientThread, GrpcThread, UiThread, WsThread};
 
 #[tokio::main]
 async fn main() {
+    setup();
     let cfg = config::CONFIG.with(|z| z.clone());
     if cfg.debug_logs {
         log_to_file("debug_logs.txt", log::LevelFilter::Info).expect("Couldn't create logger!");
@@ -27,6 +32,7 @@ async fn main() {
     }
 
     let last_poll: Arc<RwLock<StatsBlockWithFrames>> = Arc::new(RwLock::default());
+
     let logs: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::default());
     let (submit_event_sender, submit_event_receiver) = mpsc::channel();
     let (log_sender, log_recevicer) = mpsc::channel::<String>();
@@ -49,7 +55,14 @@ async fn main() {
 
     let _grpc_thread = GrpcThread::create_and_start(submit_event_receiver, log_sender.clone());
 
+    let _ws_thread = WsThread::create_and_start(last_poll.clone());
+
+    let mut loop_helper = LoopHelper::builder()
+        .report_interval_s(0.5)
+        .build_with_target_rate(3.);
+
     loop {
+        let _delta = loop_helper.loop_start();
         if let Ok(new_log) = log_recevicer.try_recv() {
             if let Ok(mut writer) = logs.try_write() {
                 writer.push(new_log);
@@ -67,8 +80,21 @@ async fn main() {
                 writer.is_ok = true;
             }
         }
-        utils::sleep(Duration::from_millis(30));
+        loop_helper.loop_sleep();
     }
+}
+
+#[cfg(target_os = "windows")]
+fn setup() {
+    use winapi::ctypes::c_uint;
+    use winapi::shared::minwindef::UINT;
+
+    unsafe { winapi::um::timeapi::timeBeginPeriod(5 as c_uint as UINT); }
+}
+
+#[cfg(target_os = "linux")]
+fn setup() {
+
 }
 
 pub struct Conn {

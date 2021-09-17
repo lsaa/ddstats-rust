@@ -2,9 +2,11 @@
 // Thread Configs
 //
 
+use spin_sleep::{LoopHelper, LoopHelperBuilder};
 use tokio::runtime::Handle;
 use tonic::transport::Channel;
 use tui::layout::{Constraint, Direction, Layout};
+use websocket::{sync::Server, OwnedMessage};
 
 use crate::{
     client::{Client, GameClientState, GameStatus, SubmitGameEvent},
@@ -15,6 +17,7 @@ use crate::{
     Conn,
 };
 use std::{
+    net::TcpListener,
     sync::{
         mpsc::{Receiver, Sender},
         Arc, RwLock,
@@ -49,9 +52,12 @@ impl GameClientThread {
             sender,
         };
 
-        let tick = Duration::from_secs_f32(1. / 36.);
+        let mut loop_helper = LoopHelper::builder()
+            .report_interval_s(0.5)
+            .build_with_target_rate(36.0);
+
         let join_handle = thread::spawn(move || loop {
-            let now = Instant::now();
+            let _delta = loop_helper.loop_start();
             client.game_loop();
 
             if let Some(data) = &client.game_connection.last_fetch {
@@ -59,11 +65,7 @@ impl GameClientThread {
                     writer.clone_from(data);
                 }
             }
-            let mut d = now.elapsed();
-            if d > tick {
-                d = tick.clone();
-            }
-            crate::utils::sleep(tick - d);
+            loop_helper.loop_sleep();
         });
 
         Self { join_handle }
@@ -81,10 +83,12 @@ impl UiThread {
         let mut term = crate::ui::create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
-        let mut last = Instant::now();
-        let tick = Duration::from_secs_f32(1. / 14.);
+        let mut loop_helper = LoopHelper::builder()
+            .report_interval_s(0.5)
+            .build_with_target_rate(14.0);
+
         thread::spawn(move || loop {
-            let now = Instant::now();
+            let _delta = loop_helper.loop_start();
             let read_data = latest_data.read().expect("Couldn't read last data");
             let log_list = logs.read().expect("Poisoned logs!").clone();
 
@@ -156,13 +160,7 @@ impl UiThread {
                 crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
             })
             .unwrap();
-            let mut d = now.elapsed();
-            if d > tick {
-                d = tick.clone();
-            }
-            log::info!("{:?}", last);
-            last = Instant::now();
-            crate::utils::sleep(tick - d);
+            loop_helper.loop_sleep();
         });
     }
 }
@@ -179,7 +177,6 @@ impl GrpcThread {
     pub fn create_and_start(submit: Receiver<SubmitGameEvent>, log_sender: Sender<String>) {
         let cfg = config::CONFIG.with(|z| z.clone());
         let handle = Handle::current();
-        let mut last_update = Instant::now();
         handle.spawn(async move {
             let mut client = GameRecorderClient::connect(cfg.grpc_host.clone())
                 .await
@@ -192,11 +189,12 @@ impl GrpcThread {
                 .expect("GAMING");
             log::info!("MOTD {}", res.get_ref().motd);
 
+            let mut loop_helper = LoopHelper::builder()
+                .report_interval_s(0.5)
+                .build_with_target_rate(3.);
+
             loop {
-                if last_update.elapsed() < Duration::from_millis(20) {
-                    continue;
-                }
-                last_update = Instant::now();
+                let _delta = loop_helper.loop_start();
                 let maybe = submit.try_recv();
                 if maybe.is_ok() && !cfg.offline {
                     log::info!("Got into ClientSubmitReq");
@@ -215,7 +213,49 @@ impl GrpcThread {
                         log::error!("Failed to submit!! {:?}", res);
                     }
                 }
-                crate::utils::sleep(Duration::from_millis(20));
+                loop_helper.loop_sleep();
+            }
+        });
+    }
+}
+
+pub struct WsThread;
+
+impl WsThread {
+    pub fn create_and_start(last_poll: ArcRw<StatsBlockWithFrames>) {
+        thread::spawn(move || {
+            let server = Server::bind("127.0.0.1:13666").unwrap();
+            for request in server.filter_map(Result::ok) {
+                let local_poll = last_poll.clone();
+                thread::spawn(move || {
+                    if !request.protocols().contains(&"rust-websocket".to_string()) {
+                        request.reject().unwrap();
+                        return;
+                    }
+                    let mut client = request.use_protocol("rust-websocket").accept().unwrap();
+                    let message = OwnedMessage::Text("Hello".to_string());
+                    client.send_message(&message).unwrap();
+                    let (mut receiver, mut sender) = client.split().unwrap();
+                    for message in receiver.incoming_messages() {
+                        let cv = local_poll.read().expect("AA").clone();
+                        let serialized = serde_json::to_string(&cv).expect("E");
+                        let message = message.unwrap();
+                        match message {
+                            OwnedMessage::Close(_) => {
+                                let message = OwnedMessage::Close(None);
+                                sender.send_message(&message).unwrap();
+                                return;
+                            }
+                            OwnedMessage::Ping(ping) => {
+                                let message = OwnedMessage::Pong(ping);
+                                sender.send_message(&message).unwrap();
+                            }
+                            _ => sender
+                                .send_message(&OwnedMessage::Text(serialized.clone()))
+                                .unwrap(),
+                        }
+                    }
+                });
             }
         });
     }

@@ -14,19 +14,21 @@ tui = { version = "0.16.0", default-features = false, features = ["crossterm", "
 crossterm = "0.20.0"
 ron = "0.6.4"
 serde = { version = "1.0.60", features = ["serde_derive"] }
+serde_json = "1.0"
 log = "0.4.14"
 simple-logging = "2.0.2"
 regex = "1.5.4"
 scan_fmt = "0.2.6"
 futures = "0.3.17"
-tokio = { version = "1.11.0", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.11.0", default-features = false, features = ["rt-multi-thread", "macros"] }
 log-panics = "2.0.0"
 num-traits = "0.2"
 num-derive = "0.2"
+spin_sleep = "1.0.0"
+websocket = { version = "0.26.2", default-features = false, features=["sync"] }
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["tlhelp32"]}
-spin_sleep = "1.0.0"

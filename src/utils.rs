@@ -7,9 +7,9 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 #[cfg(windows)]
-extern crate winapi;
-#[cfg(windows)]
 extern crate spin_sleep;
+#[cfg(windows)]
+extern crate winapi;
 
 thread_local! {
     #[cfg(target_os = "windows")]
