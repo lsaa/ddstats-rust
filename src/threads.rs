@@ -77,82 +77,84 @@ impl UiThread {
         let mut term = crate::ui::create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::CONFIG.with(|e| e.clone());
-        let mut interval = tokio::time::interval(Duration::from_secs_f32(1./20.));
-        let mut last_time = Instant::now();
-        tokio::spawn(async move { loop {
-            interval.tick().await;
-            let read_data = latest_data.read().expect("Couldn't read last data");
-            let log_list = logs.read().expect("Poisoned logs!").clone();
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 10.));
+        tokio::spawn(async move {
+            loop {
+                interval.tick().await;
+                let read_data = latest_data.read().expect("Couldn't read last data");
+                let log_list = logs.read().expect("Poisoned logs!").clone();
 
-            term.draw(|f| {
-                let mut layout = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([Constraint::Percentage(100)])
-                    .split(f.size());
-
-                if !connected.read().expect("AAA").is_ok && cfg.ui_conf.orb_connection_animation {
-                    draw_levi(f, layout[0]);
-                    return;
-                }
-
-                if cfg.ui_conf.logo_style != LogoStyle::Off {
-                    let max_w = LOGO_NEW.lines().fold(
-                        LOGO_NEW.lines().next().unwrap().chars().count(),
-                        |acc, x| {
-                            if x.chars().count() > acc {
-                                x.chars().count()
-                            } else {
-                                acc
-                            }
-                        },
-                    );
-
-                    let height = match cfg.ui_conf.logo_style {
-                        LogoStyle::Auto => {
-                            if layout[0].width as usize >= max_w {
-                                LOGO_NEW.lines().count()
-                            } else {
-                                LOGO_MINI.lines().count()
-                            }
-                        }
-                        LogoStyle::Mini => LOGO_MINI.lines().count(),
-                        LogoStyle::Full => LOGO_NEW.lines().count(),
-                        LogoStyle::Off => 0,
-                    };
-
-                    layout = Layout::default()
+                term.draw(|f| {
+                    let mut layout = Layout::default()
                         .direction(Direction::Vertical)
-                        .constraints([
-                            Constraint::Min(height as u16 + 1),
-                            Constraint::Percentage(100),
-                        ])
+                        .constraints([Constraint::Percentage(100)])
                         .split(f.size());
 
-                    crate::ui::draw_logo(f, layout[0]);
-                }
+                    if !connected.read().expect("AAA").is_ok && cfg.ui_conf.orb_connection_animation
+                    {
+                        draw_levi(f, layout[0]);
+                        return;
+                    }
 
-                let mut info = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Percentage(100)])
-                    .horizontal_margin(0)
-                    .vertical_margin(0)
-                    .split(layout[layout.len() - 1]);
+                    if cfg.ui_conf.logo_style != LogoStyle::Off {
+                        let max_w = LOGO_NEW.lines().fold(
+                            LOGO_NEW.lines().next().unwrap().chars().count(),
+                            |acc, x| {
+                                if x.chars().count() > acc {
+                                    x.chars().count()
+                                } else {
+                                    acc
+                                }
+                            },
+                        );
 
-                if !cfg.ui_conf.hide_logs {
-                    info = Layout::default()
+                        let height = match cfg.ui_conf.logo_style {
+                            LogoStyle::Auto => {
+                                if layout[0].width as usize >= max_w {
+                                    LOGO_NEW.lines().count()
+                                } else {
+                                    LOGO_MINI.lines().count()
+                                }
+                            }
+                            LogoStyle::Mini => LOGO_MINI.lines().count(),
+                            LogoStyle::Full => LOGO_NEW.lines().count(),
+                            LogoStyle::Off => 0,
+                        };
+
+                        layout = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([
+                                Constraint::Min(height as u16 + 1),
+                                Constraint::Percentage(100),
+                            ])
+                            .split(f.size());
+
+                        crate::ui::draw_logo(f, layout[0]);
+                    }
+
+                    let mut info = Layout::default()
                         .direction(Direction::Horizontal)
-                        .constraints([Constraint::Min(20), Constraint::Percentage(100)])
+                        .constraints([Constraint::Percentage(100)])
                         .horizontal_margin(0)
                         .vertical_margin(0)
                         .split(layout[layout.len() - 1]);
 
-                    crate::ui::draw_logs(f, info[0], &log_list);
-                }
+                    if !cfg.ui_conf.hide_logs {
+                        info = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([Constraint::Min(20), Constraint::Percentage(100)])
+                            .horizontal_margin(0)
+                            .vertical_margin(0)
+                            .split(layout[layout.len() - 1]);
 
-                crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
-            })
-            .unwrap();
-        }});
+                        crate::ui::draw_logs(f, info[0], &log_list);
+                    }
+
+                    crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
+                })
+                .unwrap();
+            }
+        });
     }
 }
 
@@ -164,11 +166,14 @@ pub struct GrpcThread {
     pub client: GameRecorderClient<Channel>,
 }
 
+const RETRY: usize = 5;
+
 impl GrpcThread {
-    pub fn create_and_start(submit: Receiver<SubmitGameEvent>, log_sender: Sender<String>) {
+    pub fn create_and_start(submit: tokio::sync::mpsc::Receiver<SubmitGameEvent>, log_sender: Sender<String>) {
         let cfg = config::CONFIG.with(|z| z.clone());
-        let handle = Handle::current();
-        handle.spawn(async move {
+        use crate::grpc_models::SubmitGameRequest;
+
+        tokio::spawn(async move{
             let mut client = GameRecorderClient::connect(cfg.grpc_host.clone())
                 .await
                 .expect("GAMES");
@@ -180,33 +185,22 @@ impl GrpcThread {
                 .expect("GAMING");
             log::info!("MOTD {}", res.get_ref().motd);
 
-            let mut loop_helper = LoopHelper::builder()
-                .report_interval_s(0.5)
-                .build_with_target_rate(3.);
-
             loop {
-                let _delta = loop_helper.loop_start();
-                let maybe = submit.try_recv();
-                if maybe.is_ok() && !cfg.offline {
-                    log::info!("Got into ClientSubmitReq");
-                    let compiled = maybe.unwrap();
-                    let g = grpc_models::SubmitGameRequest::from_compiled_run(compiled.0);
-                    let res = client.submit_game(g).await;
-                    if res.is_ok() {
-                        let res = res.as_ref().unwrap();
-                        if cfg.auto_clipboard {
-                            // cry
+                if let Some(run_submit_req) = submit.recv().await {
+                    let mut res = client.submit_game(SubmitGameRequest::from_compiled_run(run_submit_req.0)).await;
+                    for i in 0..RETRY {
+                        if res.is_err() {
+                            client.submit_game(SubmitGameRequest::from_compiled_run(run_submit_req.0)).await;
+                        } else {
+                            break;
                         }
-
-                        log_sender
-                            .send(format!("Submitted {}", res.get_ref().game_id))
-                            .expect("FUNNY");
-                        log::info!("SUBMIT");
+                    }
+                    if res.is_err() {
+                        log::error!("Couldn't submit run!");
                     } else {
-                        log::error!("Failed to submit!! {:?}", res);
+                        log_sender.send(format!("Submitted {}!", res.unwrap().get_ref().game_id)).unwrap();
                     }
                 }
-                loop_helper.loop_sleep();
             }
         });
     }

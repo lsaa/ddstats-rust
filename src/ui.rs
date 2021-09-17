@@ -445,7 +445,7 @@ impl<'a> Widget for GameDataColorizer {
 impl<'a> Widget for LeviRipple {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let lev = LEVI.with(|z| z.clone());
-        let time_elapsed = lev.start_time.elapsed().div_f32(75.);
+        let time_elapsed = lev.start_time.elapsed().div_f32(200.);
         // Different Messages so it can always be centered
         let msg1 = "Waiting for Devil Daggers";
         let msg2 = "Waiting for Game";

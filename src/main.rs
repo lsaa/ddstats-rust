@@ -12,7 +12,8 @@ pub mod threads;
 #[cfg(windows)]
 extern crate winapi;
 
-use std::sync::{mpsc, Arc, RwLock};
+use tokio::sync::{mpsc, RwLock};
+use std::sync::Arc;
 
 use mem::StatsBlockWithFrames;
 use simple_logging::log_to_file;
@@ -31,10 +32,10 @@ async fn main() {
     let last_poll: Arc<RwLock<StatsBlockWithFrames>> = Arc::new(RwLock::default());
 
     let logs: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::default());
-    let (submit_event_sender, submit_event_receiver) = mpsc::channel();
-    let (log_sender, log_recevicer) = mpsc::channel::<String>();
-    let (game_connected_sender, game_connected_receiver) = mpsc::channel::<bool>();
-    let (game_disconnected_sender, game_disconnected_receiver) = mpsc::channel::<bool>();
+    let (submit_event_sender, submit_event_receiver) = mpsc::channel(20);
+    let (log_sender, log_recevicer) = mpsc::channel::<String>(20);
+    let (game_connected_sender, game_connected_receiver) = mpsc::channel::<bool>(20);
+    let (game_disconnected_sender, game_disconnected_receiver) = mpsc::channel::<bool>(20);
     let game_connected = Arc::new(RwLock::new(Conn { is_ok: false }));
 
     let _game_thread = GameClientThread::create_and_start(
@@ -43,7 +44,8 @@ async fn main() {
         log_sender.clone(),
         game_disconnected_sender,
         game_connected_sender,
-    ).await;
+    )
+    .await;
 
     if cfg.ui_conf.enabled {
         let _ui_thread =
