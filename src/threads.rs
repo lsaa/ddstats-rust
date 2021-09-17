@@ -224,8 +224,13 @@ pub struct WsThread;
 impl WsThread {
     pub fn create_and_start(last_poll: ArcRw<StatsBlockWithFrames>) {
         thread::spawn(move || {
+            let mut loop_helper = LoopHelper::builder()
+                .report_interval_s(0.5)
+                .build_with_target_rate(36.);
+
             let server = Server::bind("127.0.0.1:13666").unwrap();
             for request in server.filter_map(Result::ok) {
+                let _delta = loop_helper.loop_start();
                 let local_poll = last_poll.clone();
                 thread::spawn(move || {
                     if !request.protocols().contains(&"rust-websocket".to_string()) {
@@ -256,6 +261,7 @@ impl WsThread {
                         }
                     }
                 });
+                loop_helper.loop_sleep();
             }
         });
     }
