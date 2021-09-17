@@ -18,7 +18,7 @@ use std::mem::size_of;
 use std::process::{exit, Child, Command};
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufReader},
 };
 use sysinfo::{Pid, ProcessExt, System, SystemExt};
 
@@ -71,6 +71,7 @@ pub fn get_proc(process_name: &str) -> Option<(String, Pid)> {
     None
 }
 
+#[allow(dead_code)]
 fn is_elf(start_bytes: &[u8; 4]) -> bool {
     let elf_signature: [u8; 4] = [0x7f, 0x45, 0x4c, 0x46];
     elf_signature == *start_bytes
@@ -447,6 +448,7 @@ impl StatsBlockWithFrames {
     }
 }
 
+#[cfg(target_os = "linux")]
 fn create_as_child(pid: Pid) -> Option<Child> {
     let mut exe = String::new();
     BufReader::new(File::open(format!("/proc/{}/cmdline", pid)).expect("Coudln't read cmdline"))
