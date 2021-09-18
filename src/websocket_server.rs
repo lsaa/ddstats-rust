@@ -10,7 +10,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tokio::time::interval;
+use tokio::time::{Instant, interval};
 use tokio_stream::wrappers::IntervalStream;
 use warp::sse::Event;
 use warp::{
@@ -40,14 +40,29 @@ impl WebsocketServer {
                 .and(with_poll_data(poll.clone()))
                 .map(|poll: PollData| {
                     let interval = interval(Duration::from_secs_f32(1. / 36.));
+                    let mut accumulator = Duration::ZERO;
+                    let mut elapse = Instant::now();
+                    let mut is_first = true;
                     let stream = IntervalStream::new(interval);
-                    let event_stream = stream.map(move |_| {
+                    let event_stream = stream.map(move |instant| {
+                        if is_first {
+                            is_first = false;
+                            return sse_first();
+                        }
+
                         let mini = MiniBlock::from_stats(
                             &futures::executor::block_on(poll.read()).clone(),
                         );
+
+                        accumulator += elapse.elapsed();
+                        elapse = instant;
+                        if accumulator > Duration::from_secs(1) {
+                            accumulator = Duration::ZERO;
+                            return sse_full(futures::executor::block_on(poll.read()).clone());
+                        }
+
                         sse_miniblock(mini)
                     });
-                    // reply using server-sent events
                     warp::sse::reply(event_stream)
                 });
 
@@ -125,6 +140,20 @@ pub struct MiniBlock {
     pub kills: i32,
 }
 
+#[derive(serde::Serialize)]
+pub struct FullDto {
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub data: StatsBlockWithFrames
+}
+
+#[derive(serde::Serialize)]
+pub struct MiniDto {
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub data: MiniBlock
+}
+
 impl MiniBlock {
     pub fn from_stats(data: &StatsBlockWithFrames) -> Self {
         Self {
@@ -141,8 +170,13 @@ impl MiniBlock {
         }
     }
 }
+fn sse_first() -> Result<Event, Infallible> {
+    Ok(warp::sse::Event::default().data("{\"type\":\"hello\"}".to_string()))
+}
 
-// create server-sent event
+fn sse_full(miniblock: StatsBlockWithFrames) -> Result<Event, Infallible> {
+    Ok(warp::sse::Event::default().data(serde_json::to_string(&FullDto { _type: "full".into(), data: miniblock }).unwrap()))
+}
 fn sse_miniblock(miniblock: MiniBlock) -> Result<Event, Infallible> {
-    Ok(warp::sse::Event::default().data(serde_json::to_string(&miniblock).unwrap()))
+    Ok(warp::sse::Event::default().data(serde_json::to_string(&MiniDto { _type: "miniblock".into(), data: miniblock }).unwrap()))
 }
