@@ -28,6 +28,10 @@ thread_local! {
     static FRAME_BUF: RefCell<[u8; STATS_FRAME_SIZE]> = RefCell::new([0_u8; STATS_FRAME_SIZE]);
 }
 
+// HAHAHAHAHHAH WINDOWS
+unsafe impl Send for GameConnection {}
+unsafe impl Sync for GameConnection {}
+
 #[rustfmt::skip] #[cfg(target_os = "linux")]
 pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Result<StatsDataBlock, std::io::Error> {
     use process_memory::*;
