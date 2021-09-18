@@ -26,6 +26,7 @@ regex = "1.5.4"
 scan_fmt = "0.2.6"
 futures = "0.3.17"
 tokio = { version = "1.11.0", default-features = false, features = ["rt-multi-thread", "macros", "sync"] }
+tokio-stream = { version = "0.1.7", features = ["net"] }
 log-panics = "2.0.0"
 num-traits = "0.2"
 num-derive = "0.2"

@@ -2,18 +2,21 @@
 //  websocket_server.rs - Funny Data for Funny Readers
 //
 
+use crate::mem::StatsBlockWithFrames;
 use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
+use tokio::time::interval;
+use tokio_stream::wrappers::IntervalStream;
+use warp::sse::Event;
 use warp::{
     ws::{Message, WebSocket},
     Filter,
 };
-
-use crate::mem::StatsBlockWithFrames;
 
 pub struct WebsocketServer;
 
@@ -26,13 +29,32 @@ impl WebsocketServer {
 
             let ws = warp::path::end()
                 .and(warp::ws())
-                .and(with_poll_data(poll))
+                .and(with_poll_data(poll.clone()))
                 .map(|ws: warp::ws::Ws, poll| {
                     log::info!("upgrading connection to websocket");
                     ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll))
                 });
 
-            let routes = health_check.or(ws).with(warp::cors().allow_any_origin());
+            let stream = warp::path("miniblock")
+                .and(warp::get())
+                .and(with_poll_data(poll.clone()))
+                .map(|poll: PollData| {
+                    let interval = interval(Duration::from_secs_f32(1. / 36.));
+                    let stream = IntervalStream::new(interval);
+                    let event_stream = stream.map(move |_| {
+                        let mini = MiniBlock::from_stats(
+                            &futures::executor::block_on(poll.read()).clone(),
+                        );
+                        sse_miniblock(mini)
+                    });
+                    // reply using server-sent events
+                    warp::sse::reply(event_stream)
+                });
+
+            let routes = health_check
+                .or(ws)
+                .or(stream)
+                .with(warp::cors().allow_any_origin());
 
             warp::serve(routes)
                 .run(SocketAddr::new(
@@ -87,4 +109,40 @@ type PollData = Arc<RwLock<StatsBlockWithFrames>>;
 
 fn with_poll_data(c: PollData) -> impl Filter<Extract = (PollData,), Error = Infallible> + Clone {
     warp::any().map(move || c.clone())
+}
+
+#[derive(serde::Serialize)]
+pub struct MiniBlock {
+    pub time: f32,
+    pub daggers_fired: i32,
+    pub daggers_hit: i32,
+    pub enemies_alive: i32,
+    pub gems_collected: i32,
+    pub gems_despawned: i32,
+    pub gems_eaten: i32,
+    pub gems_total: i32,
+    pub homing: i32,
+    pub kills: i32,
+}
+
+impl MiniBlock {
+    pub fn from_stats(data: &StatsBlockWithFrames) -> Self {
+        Self {
+            time: data.block.time,
+            daggers_fired: data.block.daggers_fired,
+            daggers_hit: data.block.daggers_hit,
+            enemies_alive: data.block.enemies_alive,
+            gems_collected: data.block.gems_collected,
+            gems_despawned: data.block.gems_despawned,
+            gems_eaten: data.block.gems_eaten,
+            gems_total: data.block.gems_total,
+            homing: data.block.homing,
+            kills: data.block.kills,
+        }
+    }
+}
+
+// create server-sent event
+fn sse_miniblock(miniblock: MiniBlock) -> Result<Event, Infallible> {
+    Ok(warp::sse::Event::default().data(serde_json::to_string(&miniblock).unwrap()))
 }

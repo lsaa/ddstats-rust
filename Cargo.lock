@@ -221,6 +221,7 @@ dependencies = [
  "spin_sleep",
  "sysinfo",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-build",
  "tui",
