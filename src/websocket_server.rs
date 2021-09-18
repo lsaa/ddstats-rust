@@ -24,7 +24,7 @@ impl WebsocketServer {
 
             let health_check = warp::path("health-check").map(|| format!("Server OK"));
 
-            let ws = warp::path("ws")
+            let ws = warp::path::end()
                 .and(warp::ws())
                 .and(with_poll_data(poll))
                 .map(|ws: warp::ws::Ws, poll| {
@@ -68,7 +68,6 @@ async fn handle_websocket_message(
     sender: &mut SplitSink<WebSocket, Message>,
     data: PollData,
 ) {
-    // Skip any non-Text messages...
     let _msg = if let Ok(s) = message.to_str() {
         s
     } else {
