@@ -120,6 +120,7 @@ impl GamePollClient {
                 self.submitted_data = true;
             }
 
+            self.last_game_state = status;
             self.state.last_poll.write().await.clone_from(&data);
         }
     }
