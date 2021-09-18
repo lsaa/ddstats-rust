@@ -5,14 +5,15 @@
 use std::{
     io::{stdout, Stdout},
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use regex::Regex;
+use tokio::sync::RwLock;
 use tui::{
     backend::{Backend, CrosstermBackend},
     buffer::Buffer,
-    layout::{Alignment, Constraint, Corner, Rect},
+    layout::{Alignment, Constraint, Corner, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Span, Spans},
     widgets::{Block, Borders, List, ListItem, Row, Table, Widget},
@@ -23,10 +24,109 @@ use serde::Deserialize;
 
 use crossterm::{event::EnableMouseCapture, execute, terminal::enable_raw_mode};
 
-use crate::{config, consts::*, mem::StatsBlockWithFrames};
+use crate::{
+    client::ConnectionState,
+    config::{self, LogoStyle},
+    consts::*,
+    mem::StatsBlockWithFrames,
+};
 
 thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
+}
+
+pub struct UiThread;
+
+impl UiThread {
+    pub async fn init(
+        latest_data: Arc<RwLock<StatsBlockWithFrames>>,
+        logs: Arc<RwLock<Vec<String>>>,
+        connected: Arc<RwLock<ConnectionState>>,
+    ) {
+        let mut term = create_term();
+        term.clear().expect("Couldn't clear terminal");
+        let cfg = config::cfg();
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 20.));
+        tokio::spawn(async move {
+            loop {
+                interval.tick().await;
+                let read_data = latest_data.read().await;
+                let log_list = logs.read().await;
+                let connection_status = connected.read().await;
+
+                term.draw(|f| {
+                    let mut layout = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([Constraint::Percentage(100)])
+                        .split(f.size());
+
+                    if *connection_status == ConnectionState::NotConnected
+                        && cfg.ui_conf.orb_connection_animation
+                    {
+                        draw_levi(f, layout[0]);
+                        return;
+                    }
+
+                    if cfg.ui_conf.logo_style != LogoStyle::Off {
+                        let max_w = LOGO_NEW.lines().fold(
+                            LOGO_NEW.lines().next().unwrap().chars().count(),
+                            |acc, x| {
+                                if x.chars().count() > acc {
+                                    x.chars().count()
+                                } else {
+                                    acc
+                                }
+                            },
+                        );
+
+                        let height = match cfg.ui_conf.logo_style {
+                            LogoStyle::Auto => {
+                                if layout[0].width as usize >= max_w {
+                                    LOGO_NEW.lines().count()
+                                } else {
+                                    LOGO_MINI.lines().count()
+                                }
+                            }
+                            LogoStyle::Mini => LOGO_MINI.lines().count(),
+                            LogoStyle::Full => LOGO_NEW.lines().count(),
+                            LogoStyle::Off => 0,
+                        };
+
+                        layout = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([
+                                Constraint::Min(height as u16 + 1),
+                                Constraint::Percentage(100),
+                            ])
+                            .split(f.size());
+
+                        crate::ui::draw_logo(f, layout[0]);
+                    }
+
+                    let mut info = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Percentage(100)])
+                        .horizontal_margin(0)
+                        .vertical_margin(0)
+                        .split(layout[layout.len() - 1]);
+
+                    if !cfg.ui_conf.hide_logs {
+                        info = Layout::default()
+                            .direction(Direction::Horizontal)
+                            .constraints([Constraint::Min(20), Constraint::Percentage(100)])
+                            .horizontal_margin(0)
+                            .vertical_margin(0)
+                            .split(layout[layout.len() - 1]);
+
+                        crate::ui::draw_logs(f, info[0], &log_list);
+                    }
+
+                    crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
+                })
+                .unwrap();
+            }
+        });
+    }
 }
 
 pub fn create_term() -> Terminal<CrosstermBackend<Stdout>> {
@@ -229,9 +329,7 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
                 "HOMING".into(),
                 format!(
                     "{} [MAX {} at {:.4}s]",
-                    data.block.homing,
-                    data.block.stats_finished_loading,
-                    data.block.time_max_homing
+                    data.block.homing, data.block.max_homing, data.block.time_max_homing
                 ),
             ])
             .style(normal_style)]
@@ -287,7 +385,7 @@ fn create_gems_lost_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<R
             vec![Row::new(["GEMS LOST".into(), gems_lost_detail]).style(normal_style)]
         },
         SizeStyle::Compact => {
-            let compact = format!("{} [{}+{}]", total_gems_lost, data.block.gems_despawned, data.block.gems_eaten);
+            let compact = format!("{} [{} / {}]", total_gems_lost, data.block.gems_despawned, data.block.gems_eaten);
             vec![Row::new(["GEMS LOST".into(), compact]).style(normal_style)]
         },
         SizeStyle::Minimal => {

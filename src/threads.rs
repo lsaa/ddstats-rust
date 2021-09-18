@@ -1,257 +1,89 @@
 //
-// Thread Configs
+//  threads.rs - Management of threads
 //
 
-use spin_sleep::LoopHelper;
-use tokio::runtime::Handle;
-use tonic::transport::Channel;
-use tui::layout::{Constraint, Direction, Layout};
-use websocket::{sync::Server, OwnedMessage};
+// Rewrite Counter:
+// I HATE WINDOWS
+// I HATE WINDOWS
 
 use crate::{
-    client::{Client, GameClientState, GameStatus, SubmitGameEvent},
-    config::{self, LogoStyle},
-    consts::{LOGO_MINI, LOGO_NEW},
-    mem::{GameConnection, StatsBlockWithFrames},
-    ui::draw_levi,
-    Conn,
+    client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent},
+    config::cfg,
+    grpc_client::GameSubmissionClient,
+    mem::StatsBlockWithFrames,
+    ui::UiThread,
+    websocket_server::WebsocketServer,
 };
-use std::{
-    sync::{
-        mpsc::{Receiver, Sender},
-        Arc, RwLock,
-    },
-    thread,
-    time::{Duration, Instant},
+use std::{sync::Arc, time::Duration};
+use tokio::sync::{
+    mpsc::{channel, Receiver, Sender},
+    RwLock,
 };
 
-/* Game Poll Thread */
-pub struct GameClientThread {}
+pub struct MainTask {
+    state: MainTaskState,
+}
 
-impl GameClientThread {
-    pub async fn create_and_start(
-        last_poll: ArcRw<StatsBlockWithFrames>,
-        sender: Sender<SubmitGameEvent>,
-        log_sender: Sender<String>,
-        game_disconnected: Sender<bool>,
-        game_conneceted: Sender<bool>,
-    ) {
-        let mut c = Client {
-            game_connection: GameConnection::dead_connection(),
-            game_state: GameClientState::NotConnected,
-            last_game_update: Instant::now(),
-            compiled_run: None,
-            last_game_state: GameStatus::Title,
-            submitted_data: false,
-            log_sender: log_sender.clone(),
-            conn: (game_conneceted, game_disconnected),
-            connecting_start: Instant::now(),
-            sender,
+pub struct MainTaskState {
+    pub log_send: Sender<String>,
+    pub log_recv: Receiver<String>,
+    pub sge_send: Sender<SubmitGameEvent>,
+    pub conn: Arc<RwLock<ConnectionState>>,
+    pub last_poll: Arc<RwLock<StatsBlockWithFrames>>,
+    pub logs: Arc<RwLock<Vec<String>>>,
+}
+
+impl MainTask {
+    #[rustfmt::skip]
+    pub async fn init() {
+        let (log_send, log_recv) = channel(10);
+        let (sge_send, sge_recv) = channel(3);
+        let conn: Arc<RwLock<ConnectionState>> = Arc::new(RwLock::default());
+        let last_poll: Arc<RwLock<StatsBlockWithFrames>> = Arc::new(RwLock::default());
+        let logs: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::default());
+        let config = cfg();
+
+        let mut main_task = MainTask {
+            state: MainTaskState {
+                log_send: log_send.clone(),
+                log_recv,
+                sge_send: sge_send.clone(),
+                conn: conn.clone(),
+                last_poll: last_poll.clone(),
+                logs: logs.clone()
+            },
         };
 
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 36.));
+        GamePollClient::init(ClientSharedState {
+            log_sender: log_send.clone(),
+            connection_sender: conn.clone(),
+            sge_sender: sge_send,
+            last_poll: last_poll.clone(),
+        }).await;
 
-            loop {
-                interval.tick().await;
-                c.game_loop();
+        if config.ui_conf.enabled {
+            UiThread::init(last_poll.clone(), logs.clone(), conn.clone()).await;
+        }
 
-                if let Some(data) = &c.game_connection.last_fetch {
-                    if let Ok(mut writer) = last_poll.write() {
-                        writer.clone_from(data);
-                    }
-                }
-            }
-        });
+        if !config.offline {
+            GameSubmissionClient::init(sge_recv, log_send.clone()).await;
+            WebsocketServer::init(last_poll.clone()).await;
+        }
+
+        main_task.run().await;
+    }
+
+    pub async fn run(&mut self) {
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 3.));
+        loop {
+            interval.tick().await;
+            tokio::select! {
+                new_log = self.state.log_recv.recv() => self.handle_log(new_log.unwrap()).await,
+            };
+        }
+    }
+
+    pub async fn handle_log(&mut self, new_log: String) {
+        self.state.logs.write().await.push(new_log);
     }
 }
-
-pub struct UiThread {}
-
-impl UiThread {
-    pub fn create_and_start(
-        latest_data: ArcRw<StatsBlockWithFrames>,
-        logs: ArcRw<Vec<String>>,
-        connected: ArcRw<Conn>,
-    ) {
-        let mut term = crate::ui::create_term();
-        term.clear().expect("Couldn't clear terminal");
-        let cfg = config::CONFIG.with(|e| e.clone());
-        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 10.));
-        tokio::spawn(async move {
-            loop {
-                interval.tick().await;
-                let read_data = latest_data.read().expect("Couldn't read last data");
-                let log_list = logs.read().expect("Poisoned logs!").clone();
-
-                term.draw(|f| {
-                    let mut layout = Layout::default()
-                        .direction(Direction::Vertical)
-                        .constraints([Constraint::Percentage(100)])
-                        .split(f.size());
-
-                    if !connected.read().expect("AAA").is_ok && cfg.ui_conf.orb_connection_animation
-                    {
-                        draw_levi(f, layout[0]);
-                        return;
-                    }
-
-                    if cfg.ui_conf.logo_style != LogoStyle::Off {
-                        let max_w = LOGO_NEW.lines().fold(
-                            LOGO_NEW.lines().next().unwrap().chars().count(),
-                            |acc, x| {
-                                if x.chars().count() > acc {
-                                    x.chars().count()
-                                } else {
-                                    acc
-                                }
-                            },
-                        );
-
-                        let height = match cfg.ui_conf.logo_style {
-                            LogoStyle::Auto => {
-                                if layout[0].width as usize >= max_w {
-                                    LOGO_NEW.lines().count()
-                                } else {
-                                    LOGO_MINI.lines().count()
-                                }
-                            }
-                            LogoStyle::Mini => LOGO_MINI.lines().count(),
-                            LogoStyle::Full => LOGO_NEW.lines().count(),
-                            LogoStyle::Off => 0,
-                        };
-
-                        layout = Layout::default()
-                            .direction(Direction::Vertical)
-                            .constraints([
-                                Constraint::Min(height as u16 + 1),
-                                Constraint::Percentage(100),
-                            ])
-                            .split(f.size());
-
-                        crate::ui::draw_logo(f, layout[0]);
-                    }
-
-                    let mut info = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Percentage(100)])
-                        .horizontal_margin(0)
-                        .vertical_margin(0)
-                        .split(layout[layout.len() - 1]);
-
-                    if !cfg.ui_conf.hide_logs {
-                        info = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints([Constraint::Min(20), Constraint::Percentage(100)])
-                            .horizontal_margin(0)
-                            .vertical_margin(0)
-                            .split(layout[layout.len() - 1]);
-
-                        crate::ui::draw_logs(f, info[0], &log_list);
-                    }
-
-                    crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
-                })
-                .unwrap();
-            }
-        });
-    }
-}
-
-use crate::grpc_models;
-use crate::grpc_models::game_recorder_client::GameRecorderClient;
-
-pub struct GrpcThread {
-    pub submit_recv: Receiver<SubmitGameEvent>,
-    pub client: GameRecorderClient<Channel>,
-}
-
-const RETRY: usize = 5;
-
-impl GrpcThread {
-    pub fn create_and_start(submit: tokio::sync::mpsc::Receiver<SubmitGameEvent>, log_sender: Sender<String>) {
-        let cfg = config::CONFIG.with(|z| z.clone());
-        use crate::grpc_models::SubmitGameRequest;
-
-        tokio::spawn(async move{
-            let mut client = GameRecorderClient::connect(cfg.grpc_host.clone())
-                .await
-                .expect("GAMES");
-            let res = client
-                .client_start(grpc_models::ClientStartRequest {
-                    version: "0.6.8".to_string(),
-                })
-                .await
-                .expect("GAMING");
-            log::info!("MOTD {}", res.get_ref().motd);
-
-            loop {
-                if let Some(run_submit_req) = submit.recv().await {
-                    let mut res = client.submit_game(SubmitGameRequest::from_compiled_run(run_submit_req.0)).await;
-                    for i in 0..RETRY {
-                        if res.is_err() {
-                            client.submit_game(SubmitGameRequest::from_compiled_run(run_submit_req.0)).await;
-                        } else {
-                            break;
-                        }
-                    }
-                    if res.is_err() {
-                        log::error!("Couldn't submit run!");
-                    } else {
-                        log_sender.send(format!("Submitted {}!", res.unwrap().get_ref().game_id)).unwrap();
-                    }
-                }
-            }
-        });
-    }
-}
-
-pub struct WsThread;
-
-impl WsThread {
-    pub fn create_and_start(last_poll: ArcRw<StatsBlockWithFrames>) {
-        thread::spawn(move || {
-            let mut loop_helper = LoopHelper::builder()
-                .report_interval_s(0.5)
-                .build_with_target_rate(36.);
-
-            let server = Server::bind("127.0.0.1:13666").unwrap();
-            for request in server.filter_map(Result::ok) {
-                let _delta = loop_helper.loop_start();
-                let local_poll = last_poll.clone();
-                thread::spawn(move || {
-                    if !request.protocols().contains(&"rust-websocket".to_string()) {
-                        request.reject().unwrap();
-                        return;
-                    }
-                    let mut client = request.use_protocol("rust-websocket").accept().unwrap();
-                    let message = OwnedMessage::Text("Hello".to_string());
-                    client.send_message(&message).unwrap();
-                    let (mut receiver, mut sender) = client.split().unwrap();
-                    for message in receiver.incoming_messages() {
-                        let cv = local_poll.read().expect("AA").clone();
-                        let serialized = serde_json::to_string(&cv).expect("E");
-                        let message = message.unwrap();
-                        match message {
-                            OwnedMessage::Close(_) => {
-                                let message = OwnedMessage::Close(None);
-                                sender.send_message(&message).unwrap();
-                                return;
-                            }
-                            OwnedMessage::Ping(ping) => {
-                                let message = OwnedMessage::Pong(ping);
-                                sender.send_message(&message).unwrap();
-                            }
-                            _ => sender
-                                .send_message(&OwnedMessage::Text(serialized.clone()))
-                                .unwrap(),
-                        }
-                    }
-                });
-                loop_helper.loop_sleep();
-            }
-        });
-    }
-}
-
-type ArcRw<T> = Arc<RwLock<T>>;

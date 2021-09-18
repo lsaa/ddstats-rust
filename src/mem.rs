@@ -2,6 +2,8 @@
 //  mem module
 //  Query memory from the game process
 
+//Fine for now
+
 #[cfg(windows)]
 extern crate winapi;
 
@@ -25,10 +27,6 @@ thread_local! {
     static BLOCK_BUF: RefCell<[u8; DATA_BLOCK_SIZE]> = RefCell::new([0_u8; DATA_BLOCK_SIZE]);
     static FRAME_BUF: RefCell<[u8; STATS_FRAME_SIZE]> = RefCell::new([0_u8; STATS_FRAME_SIZE]);
 }
-
-//FUNNY
-unsafe impl Sync for GameConnection {}
-unsafe impl Send for GameConnection {}
 
 #[rustfmt::skip] #[cfg(target_os = "linux")]
 pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Result<StatsDataBlock, std::io::Error> {
@@ -108,6 +106,7 @@ pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
 
 #[cfg(windows)]
 pub fn get_base_address(pid: Pid) -> Result<usize, std::io::Error> {
+    // This is miserable
     use std::{mem::size_of_val, os::raw::c_ulong};
 
     let snapshot = unsafe {

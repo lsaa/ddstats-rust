@@ -41,6 +41,11 @@ ddstats-rust config
     Examples:
         - Rgb(0xF7, 0xCA, 0x88) || this is the hex color #F7CA88
 
+    On windows you can change the named colors (Red, Blue, etc.) by right clicking the
+    top of the window and changing CMD preferences.
+
+    On linux it just pulls from your terminal colors, probably in .Xdefaults
+
 */
 
 (

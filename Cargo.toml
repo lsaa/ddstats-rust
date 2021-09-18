@@ -30,7 +30,7 @@ log-panics = "2.0.0"
 num-traits = "0.2"
 num-derive = "0.2"
 spin_sleep = "1.0.0"
-websocket = { version = "0.26.2", default-features = false, features=["sync", "async"] }
+warp = "0.3.1"
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }

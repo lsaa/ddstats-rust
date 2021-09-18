@@ -216,3 +216,7 @@ fn get_config() -> DDStatsRustConfig {
 
     from_str(DEFAULT_CFG).expect("FUN")
 }
+
+pub fn cfg<'a>() -> Arc<DDStatsRustConfig> {
+    CONFIG.with(|z| z.clone())
+}
