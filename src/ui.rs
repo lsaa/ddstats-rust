@@ -22,7 +22,11 @@ use tui::{
 
 use serde::Deserialize;
 
-use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEvent}, execute, terminal::{LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, LeaveAlternateScreen},
+};
 
 use crate::{
     client::ConnectionState,
@@ -103,7 +107,8 @@ impl UiThread {
                                     term.backend_mut(),
                                     LeaveAlternateScreen,
                                     DisableMouseCapture
-                                ).expect("FUN");
+                                )
+                                .expect("FUN");
                                 term.show_cursor().expect("NOO");
                                 exit_broadcast
                                     .send(true)
@@ -610,7 +615,7 @@ impl<'a> Widget for LeviRipple {
                     - time_elapsed.as_millis() as f32)
                     .sin();
                 let height = (height * (255. / 2.)) + (255. / 2.);
-                let height = height.clamp(0., 255.);
+                let height = height.clamp(20., 255.);
                 buf.get_mut(x, y)
                     .set_symbol(char_from_intensity(height as u8).encode_utf8(&mut tmp))
                     .set_style(Style::default().bg(Color::Rgb(0, 0, 0)).fg(Color::Rgb(

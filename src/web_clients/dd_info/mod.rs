@@ -169,7 +169,8 @@ pub async fn get_ddstats_memory_marker(os: OperatingSystem) -> Result<MarkerResp
         .uri(uri)
         .body(Body::empty())
         .unwrap();
-    let mut res = tokio::time::timeout(Duration::from_secs(3), client.request(req)).await??;
+    let mut res = tokio::time::timeout(Duration::from_secs(4), client.request(req)).await??;
+    log::info!("Pulled Marker Sucessfully");
     let mut body = Vec::new();
     while let Some(chunk) = res.body_mut().next().await {
         body.extend_from_slice(&chunk?);
