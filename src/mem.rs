@@ -29,14 +29,17 @@ thread_local! {
 }
 
 // HAHAHAHAHHAH WINDOWS
+#[cfg(target_os = "windows")]
 unsafe impl Send for GameConnection {}
+#[cfg(target_os = "windows")]
 unsafe impl Sync for GameConnection {}
 
 #[rustfmt::skip] #[cfg(target_os = "linux")]
 pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Result<StatsDataBlock, std::io::Error> {
     use process_memory::*;
+    let block_start = crate::web_clients::dd_info::DD_MEMORY_MARKER.as_ref();
     let base = if base.is_none() { get_base_address(handle.0)? } else { base.unwrap() };
-    let offsets = [base + LINUX_BLOCK_START, 0x0, 0x1F10];
+    let offsets = [base + *block_start, 0x0, 0x1F10];
     let pointer = handle.get_offset(&offsets)? + 0xC; // 0xC to skip the header
     BLOCK_BUF.with(|buf| {
         let mut buf = buf.borrow_mut();
@@ -49,8 +52,9 @@ pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Resu
 #[rustfmt::skip] #[cfg(target_os = "windows")]
 pub fn read_stats_data_block(handle: ProcessHandle, base: Option<usize>) -> Result<StatsDataBlock, std::io::Error> {
     use process_memory::*;
+    let block_start = crate::web_clients::dd_info::DD_MEMORY_MARKER.as_ref().clone();
     let base = if base.is_none() { get_base_address(handle.0 as usize)? } else { base.unwrap() };
-    let offsets = [base + WINDOWS_BLOCK_START, 0];
+    let offsets = [base + *block_start, 0];
     let pointer = handle.get_offset(&offsets)? + 0xC; // 0xC to skip the header
     BLOCK_BUF.with(|buf| {
         let mut buf = buf.borrow_mut();
@@ -174,12 +178,14 @@ impl GameConnection {
 
         let cfg = config::CONFIG.with(|z| z.clone());
         let proc = get_proc(process_name);
+        log::info!("PROC");
         if proc.is_none() {
             return Err("Process not found");
         }
         let mut proc = proc.unwrap();
         let mut handle;
         let mut pid = proc.1;
+        log::info!("PID");
         if pid == 0 {
             return Err("PID is 0");
         }
@@ -194,12 +200,13 @@ impl GameConnection {
                 handle = pid.try_into_process_handle().unwrap();
             }
         }
-
+        log::info!("BASE");
         let base_address = get_base_address(pid);
         if base_address.is_err() {
             return Err("Couldn't get base address of process");
         }
         let base_address = base_address.unwrap();
+        log::info!("DONE");
         Ok(Self {
             pid,
             handle,

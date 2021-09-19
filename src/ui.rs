@@ -4,7 +4,7 @@
 
 use std::{
     io::{stdout, Stdout},
-    sync::Arc,
+    sync::{mpsc, Arc},
     time::{Duration, Instant},
 };
 
@@ -22,7 +22,7 @@ use tui::{
 
 use serde::Deserialize;
 
-use crossterm::{event::EnableMouseCapture, execute, terminal::enable_raw_mode};
+use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEvent}, execute, terminal::{LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
 
 use crate::{
     client::ConnectionState,
@@ -35,6 +35,36 @@ thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
 }
 
+// Modular Game Data
+
+#[derive(Deserialize)]
+pub enum GameDataModules {
+    RunData,
+    Timer,
+    Gems,
+    Homing(SizeStyle), // Minimal, Compact, Full
+    Kills,
+    Accuracy,
+    GemsLost(SizeStyle), // Minimal, Compact, Full
+    CollectionAccuracy,
+    HomingSplits(Vec<(String, f32)>), // Vec<(String, f32)>: split times and names
+    HomingUsed,
+    DaggersEaten,
+    DdclOutOfDateWarning,
+    Spacing,
+}
+
+#[derive(Deserialize, Clone)]
+pub enum SizeStyle {
+    Minimal,
+    Compact,
+    Full,
+}
+
+pub enum Event<I> {
+    Input(I),
+}
+
 pub struct UiThread;
 
 impl UiThread {
@@ -42,14 +72,48 @@ impl UiThread {
         latest_data: Arc<RwLock<StatsBlockWithFrames>>,
         logs: Arc<RwLock<Vec<String>>>,
         connected: Arc<RwLock<ConnectionState>>,
+        exit_broadcast: tokio::sync::broadcast::Sender<bool>,
     ) {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::cfg();
         let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 20.));
         tokio::spawn(async move {
+            let (tx, rx) = mpsc::channel();
+            let _input_handle = {
+                let tx = tx.clone();
+                std::thread::spawn(move || loop {
+                    if event::poll(Duration::from_secs_f32(1. / 20.)).unwrap() {
+                        if let CEvent::Key(key) = event::read().unwrap() {
+                            tx.send(Event::Input(key)).unwrap();
+                        }
+                    }
+                })
+            };
+
             loop {
                 interval.tick().await;
+
+                if let Ok(ev) = rx.try_recv() {
+                    match ev {
+                        Event::Input(event) => match event.code {
+                            KeyCode::Char('q') => {
+                                disable_raw_mode().expect("I can't");
+                                execute!(
+                                    term.backend_mut(),
+                                    LeaveAlternateScreen,
+                                    DisableMouseCapture
+                                ).expect("FUN");
+                                term.show_cursor().expect("NOO");
+                                exit_broadcast
+                                    .send(true)
+                                    .expect("Coudln't send exit broadcast");
+                                break;
+                            }
+                            _ => {}
+                        },
+                    }
+                }
                 let read_data = latest_data.read().await;
                 let log_list = logs.read().await;
                 let connection_status = connected.read().await;
@@ -60,7 +124,7 @@ impl UiThread {
                         .constraints([Constraint::Percentage(100)])
                         .split(f.size());
 
-                    if *connection_status == ConnectionState::NotConnected
+                    if *connection_status != ConnectionState::Connected
                         && cfg.ui_conf.orb_connection_animation
                     {
                         draw_levi(f, layout[0]);
@@ -189,20 +253,22 @@ pub fn draw_info_table<B>(f: &mut Frame<B>, area: Rect, last_data: &StatsBlockWi
 where
     B: Backend,
 {
-    let cfg = config::CONFIG.with(|z| z.clone());
+    let cfg = config::cfg();
     let mut rows = vec![];
     let colorizer = GameDataColorizer {};
     for module in &cfg.ui_conf.game_data_modules {
         rows.extend(module.to_rows(last_data));
     }
 
+    let dist = cfg.ui_conf.column_distance;
+    let widths = [
+        Constraint::Percentage(dist),
+        Constraint::Length(40),
+        Constraint::Max(10),
+    ];
     let t = Table::new(rows)
         .block(Block::default().borders(Borders::ALL).title("Game Data"))
-        .widths(&[
-            Constraint::Percentage(40),
-            Constraint::Length(40),
-            Constraint::Max(10),
-        ])
+        .widths(&widths)
         .style(cfg.ui_conf.style.game_data)
         .column_spacing(1);
     f.render_widget(t, area);
@@ -245,31 +311,6 @@ where
     f.render_widget(events_list, area);
 }
 
-// Modular Game Data
-
-#[derive(Deserialize)]
-pub enum GameDataModules {
-    RunData,
-    Timer,
-    Gems,
-    Homing(SizeStyle), // Minimal, Compact, Full
-    Kills,
-    Accuracy,
-    GemsLost(SizeStyle), // Minimal, Compact, Full
-    CollectionAccuracy,
-    HomingSplits(Vec<(String, f32)>), // Vec<(String, f32)>: split times and names
-    HomingUsed,
-    DaggersEaten,
-    Spacing,
-}
-
-#[derive(Deserialize, Clone)]
-pub enum SizeStyle {
-    Minimal,
-    Compact,
-    Full,
-}
-
 #[allow(unreachable_patterns)] #[rustfmt::skip]
 impl<'a> GameDataModules {
     pub fn to_rows(&'a self, data: &'a StatsBlockWithFrames) -> Vec<Row> {
@@ -285,6 +326,7 @@ impl<'a> GameDataModules {
             GameDataModules::HomingSplits(times) => create_homing_splits_rows(&data, times.clone()),
             GameDataModules::HomingUsed => create_homing_used_rows(&data),
             GameDataModules::DaggersEaten => create_daggers_eaten_rows(&data),
+            GameDataModules::DdclOutOfDateWarning => ddcl_warning_rows(&data),
             GameDataModules::Spacing | _ => vec![Row::new([""])],
         }
     }
@@ -451,6 +493,18 @@ fn create_daggers_eaten_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     vec![Row::new([
         "DAGGERS EATEN".into(),
         format!("{}", data.block.daggers_eaten),
+    ])
+    .style(normal_style)]
+}
+
+fn ddcl_warning_rows(_data: &StatsBlockWithFrames) -> Vec<Row> {
+    let normal_style = Style::default().fg(Color::White);
+    if *crate::web_clients::dd_info::DDLC_UP_TO_DATE.as_ref() {
+        return vec![];
+    }
+    vec![Row::new([
+        String::from("DDCL WARN"),
+        "OUT OF DATE CLIENT ||  WON'T SUBMIT".into(),
     ])
     .style(normal_style)]
 }

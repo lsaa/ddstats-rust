@@ -41,6 +41,7 @@ impl MainTask {
         let conn: Arc<RwLock<ConnectionState>> = Arc::new(RwLock::default());
         let last_poll: Arc<RwLock<StatsBlockWithFrames>> = Arc::new(RwLock::default());
         let logs: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::default());
+        let (exit_send, exit_recv) = tokio::sync::broadcast::channel(3);
         let config = cfg();
 
         let mut main_task = MainTask {
@@ -62,7 +63,7 @@ impl MainTask {
         }).await;
 
         if config.ui_conf.enabled {
-            UiThread::init(last_poll.clone(), logs.clone(), conn.clone()).await;
+            UiThread::init(last_poll.clone(), logs.clone(), conn.clone(), exit_send.clone()).await;
         }
 
         if !config.offline {
@@ -70,15 +71,16 @@ impl MainTask {
             WebsocketServer::init(last_poll.clone()).await;
         }
 
-        main_task.run().await;
+        main_task.run(exit_recv).await;
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self, mut exit_message: tokio::sync::broadcast::Receiver<bool>) {
         let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 3.));
         loop {
             interval.tick().await;
             tokio::select! {
                 new_log = self.state.log_recv.recv() => self.handle_log(new_log.unwrap()).await,
+                _msg = exit_message.recv() => break,
             };
         }
     }

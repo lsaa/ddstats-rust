@@ -46,6 +46,9 @@ ddstats-rust config
 
     On linux it just pulls from your terminal colors, probably in .Xdefaults
 
+Breaking Changes:
+    -> ui_conf.column_distance is now necessary (2021-09-19)
+
 */
 
 (
@@ -70,13 +73,18 @@ ddstats-rust config
         notify_player_best: true,
         notify_custom_spawnsets: false,
     ),
-
+    // Not implemented yet
+    ddcl: (
+        submit: true,
+        replays: true,
+    ),
     // UI Config
     ui_conf: (
         enabled: true,
         logo_style: Auto, // Off, Auto, Full, Mini
         hide_logs: false,
         orb_connection_animation: true,
+        column_distance: 30,
         style: (
             logo:               (fg: Some(Red), bg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
             logs:               (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
@@ -89,6 +97,7 @@ ddstats-rust config
             split_diff_neg:     (fg: Some(Red), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0))
         ),
         game_data_modules: [
+            DdclOutOfDateWarning,
             RunData,
             Timer,
             Gems,

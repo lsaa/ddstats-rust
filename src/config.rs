@@ -105,6 +105,7 @@ pub struct UiConf {
     pub game_data_modules: Vec<GameDataModules>,
     pub style: Styles,
     pub orb_connection_animation: bool,
+    pub column_distance: u16,
 }
 
 #[derive(Deserialize)]
@@ -149,6 +150,7 @@ pub struct DDStatsRustConfig {
     pub discord: Discord,
     pub ui_conf: UiConf,
     pub linux_restart_as_child: bool,
+    pub ddcl: Ddcl,
 }
 
 #[derive(Deserialize)]
@@ -170,6 +172,21 @@ pub struct Discord {
     pub notify_above_1000: bool,
     pub notify_player_best: bool,
     pub notify_custom_spawnsets: bool,
+}
+
+#[derive(Deserialize)]
+pub struct Ddcl {
+    pub submit: bool,
+    pub replays: bool,
+}
+
+impl std::default::Default for Ddcl {
+    fn default() -> Self {
+        Self {
+            submit: true,
+            replays: true,
+        }
+    }
 }
 
 thread_local! {

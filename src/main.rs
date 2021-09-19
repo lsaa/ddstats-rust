@@ -6,6 +6,7 @@ pub mod grpc_models;
 pub mod mem;
 pub mod threads;
 pub mod ui;
+pub mod web_clients;
 pub mod websocket_server;
 
 #[tokio::main]

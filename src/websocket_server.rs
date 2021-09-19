@@ -10,7 +10,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tokio::time::{Instant, interval};
+use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
 use warp::sse::Event;
 use warp::{
@@ -135,14 +135,14 @@ pub struct MiniBlock {
 pub struct FullDto {
     #[serde(rename = "type")]
     pub _type: String,
-    pub data: StatsBlockWithFrames
+    pub data: StatsBlockWithFrames,
 }
 
 #[derive(serde::Serialize)]
 pub struct MiniDto {
     #[serde(rename = "type")]
     pub _type: String,
-    pub data: MiniBlock
+    pub data: MiniBlock,
 }
 
 impl MiniBlock {
@@ -165,14 +165,11 @@ fn sse_first() -> Result<Event, Infallible> {
     Ok(warp::sse::Event::default().data("{\"type\":\"hello\"}".to_string()))
 }
 
-fn sse_full(miniblock: StatsBlockWithFrames) -> Result<Event, Infallible> {
-    let pain = serde_json::to_string(&FullDto { _type: "full".into(), data: miniblock });
-    log::info!("{:?}", pain);
-    Ok(warp::sse::Event::default().data(pain.unwrap()))
-}
-
 fn sse_miniblock(miniblock: MiniBlock) -> Result<Event, Infallible> {
-    let pain = serde_json::to_string(&MiniDto { _type: "miniblock".into(), data: miniblock });
+    let pain = serde_json::to_string(&MiniDto {
+        _type: "miniblock".into(),
+        data: miniblock,
+    });
     log::info!("{:?}", pain);
     Ok(warp::sse::Event::default().data(pain.unwrap()))
 }

@@ -2,7 +2,10 @@
 //  grpc_client.rs - I hate GRPC
 //
 
-use crate::{client::SubmitGameEvent, consts::SUBMIT_RETRY_MAX};
+use crate::{
+    client::SubmitGameEvent,
+    consts::{SUBMIT_RETRY_MAX, V3_SURVIVAL_HASH},
+};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub struct GameSubmissionClient;
@@ -25,6 +28,11 @@ impl GameSubmissionClient {
             log::info!("MOTD: {}", res.get_ref().motd);
             while let Some(sge) = sge_recv.recv().await {
                 log::info!("Got submit req");
+
+                if !should_submit(&sge) {
+                    continue;
+                }
+
                 let mut res = client
                     .submit_game(SubmitGameRequest::from_compiled_run(sge.0.clone()))
                     .await;
@@ -51,4 +59,14 @@ impl GameSubmissionClient {
             }
         });
     }
+}
+
+#[rustfmt::skip]
+fn should_submit(data: &SubmitGameEvent) -> bool{
+    let cfg = crate::config::cfg();
+    let is_non_default = data.0.level_hash_md5.ne(V3_SURVIVAL_HASH);
+    if is_non_default && !cfg.submit.non_default_spawnsets { return false; }
+    if data.0.is_replay && !cfg.submit.replay_stats { return false; }
+    if !data.0.is_replay && !cfg.submit.stats { return false; }
+    true
 }

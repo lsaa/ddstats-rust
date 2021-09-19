@@ -46,12 +46,12 @@ pub const SUBMIT_RETRY_MAX: u16 = 10;
 //Linux
 #[cfg(target_os = "linux")]
 pub const DD_PROCESS: &str = "devildaggers";
-pub const LINUX_BLOCK_START: usize = 0x0052BF90; // TODO: Pull from Noah's API
+pub const LINUX_BLOCK_START: usize = 0x0052BF90;
 
 //Windows
 #[cfg(target_os = "windows")]
 pub const DD_PROCESS: &str = "dd";
-pub const WINDOWS_BLOCK_START: usize = 2264200; // TODO: Same
+pub const WINDOWS_BLOCK_START: usize = 2264200;
 
 pub const DEATH_TYPES: [&str; 17] = [
     "Fallen",       // lol get rekt
