@@ -7,5 +7,5 @@ sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
 rm -f $PROTOC_ZIP
 
 sudo apt install xorg-dev
-
+export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
 sudo apt install openssl libssl-dev pkg-config
