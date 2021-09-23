@@ -13,6 +13,8 @@ jobs:
   build-release:
     name: Build & Release
     runs-on: ubuntu-latest
+    env:
+      PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig
     steps:
       - uses: actions/checkout@v2
       - name: Install deps
