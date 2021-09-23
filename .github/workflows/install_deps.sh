@@ -8,4 +8,4 @@ rm -f $PROTOC_ZIP
 
 sudo apt install xorg-dev
 
-sudo apt install openssl
+sudo apt install openssl libssl-dev
