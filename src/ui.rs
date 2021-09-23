@@ -71,18 +71,29 @@ pub enum Event<I> {
 
 pub struct UiThread;
 
+#[derive(Clone, Debug)]
+pub struct ExtraSettings {
+    homing_always_visible: bool,
+}
+
 impl UiThread {
     pub async fn init(
         latest_data: Arc<RwLock<StatsBlockWithFrames>>,
         logs: Arc<RwLock<Vec<String>>>,
         connected: Arc<RwLock<ConnectionState>>,
         exit_broadcast: tokio::sync::broadcast::Sender<bool>,
+        color_edit_styles: Arc<RwLock<crate::config::Styles>>,
     ) {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::cfg();
         let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 20.));
         tokio::spawn(async move {
+            let mut in_color_mode = false;
+            let mut extra_settings = ExtraSettings {
+                homing_always_visible: true,
+            };
+
             let (tx, rx) = mpsc::channel();
             let _input_handle = {
                 let tx = tx.clone();
@@ -115,6 +126,12 @@ impl UiThread {
                                     .expect("Coudln't send exit broadcast");
                                 break;
                             }
+                            KeyCode::F(3) => {
+                                in_color_mode = !in_color_mode;
+                            },
+                            KeyCode::F(5) => {
+                                extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
+                            }
                             _ => {}
                         },
                     }
@@ -122,6 +139,12 @@ impl UiThread {
                 let read_data = latest_data.read().await;
                 let log_list = logs.read().await;
                 let connection_status = connected.read().await;
+
+                if in_color_mode {
+                    let s = color_edit_styles.read().await;
+                    draw_color_editor_mode(&mut term, &*s);
+                    continue;
+                }
 
                 term.draw(|f| {
                     let mut layout = Layout::default()
@@ -190,12 +213,92 @@ impl UiThread {
                         crate::ui::draw_logs(f, info[0], &log_list);
                     }
 
-                    crate::ui::draw_info_table(f, info[info.len() - 1], &read_data);
+                    crate::ui::draw_info_table(
+                        f,
+                        info[info.len() - 1],
+                        &read_data,
+                        &extra_settings,
+                    );
                 })
                 .unwrap();
             }
         });
     }
+}
+
+fn draw_color_editor_mode(
+    term: &mut Terminal<CrosstermBackend<Stdout>>,
+    styles: &crate::config::Styles,
+) {
+    let cfg = crate::config::cfg();
+    term.draw(|f| {
+        let mut layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(100)])
+            .split(f.size());
+
+        if cfg.ui_conf.logo_style != LogoStyle::Off {
+            let max_w = LOGO_NEW.lines().fold(
+                LOGO_NEW.lines().next().unwrap().chars().count(),
+                |acc, x| {
+                    if x.chars().count() > acc {
+                        x.chars().count()
+                    } else {
+                        acc
+                    }
+                },
+            );
+
+            let height = match cfg.ui_conf.logo_style {
+                LogoStyle::Auto => {
+                    if layout[0].width as usize >= max_w {
+                        LOGO_NEW.lines().count()
+                    } else {
+                        LOGO_MINI.lines().count()
+                    }
+                }
+                LogoStyle::Mini => LOGO_MINI.lines().count(),
+                LogoStyle::Full => LOGO_NEW.lines().count(),
+                LogoStyle::Off => 0,
+            };
+
+            layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(height as u16 + 1),
+                    Constraint::Percentage(100),
+                ])
+                .split(f.size());
+
+            crate::ui::draw_logo_color_editor(f, layout[0], &styles);
+        }
+
+        let mut info = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(100)])
+            .horizontal_margin(0)
+            .vertical_margin(0)
+            .split(layout[layout.len() - 1]);
+
+        if !cfg.ui_conf.hide_logs {
+            info = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(20), Constraint::Percentage(100)])
+                .horizontal_margin(0)
+                .vertical_margin(0)
+                .split(layout[layout.len() - 1]);
+
+            crate::ui::draw_logs_color_edit(
+                f,
+                info[0],
+                &vec!["First".into(), "Second".into()],
+                &styles,
+            );
+        }
+
+        crate::ui::draw_info_table_color_edit(f, info[info.len() - 1], &styles);
+    })
+    .unwrap();
 }
 
 pub fn create_term() -> Terminal<CrosstermBackend<Stdout>> {
@@ -254,15 +357,53 @@ where
     f.render_widget(ascii_canvas, area);
 }
 
-pub fn draw_info_table<B>(f: &mut Frame<B>, area: Rect, last_data: &StatsBlockWithFrames)
+pub fn draw_logo_color_editor<B>(f: &mut Frame<B>, area: Rect, styles: &crate::config::Styles)
 where
+    B: Backend,
+{
+    let cfg = config::CONFIG.with(|c| c.clone());
+
+    let max_w = LOGO_NEW.lines().fold(
+        LOGO_NEW.lines().next().unwrap().chars().count(),
+        |acc, x| {
+            if x.chars().count() > acc {
+                x.chars().count()
+            } else {
+                acc
+            }
+        },
+    );
+
+    let logo = match cfg.ui_conf.logo_style {
+        config::LogoStyle::Off => "".to_string(),
+        config::LogoStyle::Auto => {
+            if area.width >= max_w as u16 {
+                LOGO_NEW.to_string()
+            } else {
+                LOGO_MINI.to_string()
+            }
+        }
+        config::LogoStyle::Mini => LOGO_MINI.to_string(),
+        config::LogoStyle::Full => LOGO_NEW.to_string(),
+    };
+
+    let ascii_canvas = AsciiCanvas::new(&logo, Alignment::Center, styles.logo);
+    f.render_widget(ascii_canvas, area);
+}
+
+pub fn draw_info_table<B>(
+    f: &mut Frame<B>,
+    area: Rect,
+    last_data: &StatsBlockWithFrames,
+    extra: &ExtraSettings,
+) where
     B: Backend,
 {
     let cfg = config::cfg();
     let mut rows = vec![];
-    let colorizer = GameDataColorizer {};
+    let colorizer = GameDataColorizer { styles: None };
     for module in &cfg.ui_conf.game_data_modules {
-        rows.extend(module.to_rows(last_data));
+        rows.extend(module.to_rows(last_data, extra));
     }
 
     let dist = cfg.ui_conf.column_distance;
@@ -275,6 +416,43 @@ where
         .block(Block::default().borders(Borders::ALL).title("Game Data"))
         .widths(&widths)
         .style(cfg.ui_conf.style.game_data)
+        .column_spacing(1);
+    f.render_widget(t, area);
+    f.render_widget(colorizer, area);
+}
+
+pub fn draw_info_table_color_edit<B>(f: &mut Frame<B>, area: Rect, styles: &crate::config::Styles)
+where
+    B: Backend,
+{
+    let cfg = config::cfg();
+    let mut rows = vec![];
+    let colorizer = GameDataColorizer {
+        styles: Some(styles.clone()),
+    };
+    let normal_style = Style::default().fg(Color::White);
+
+    rows.push(
+        Row::new(vec![
+            "REGULAR TEXT".into(),
+            "F3 TO EXIT COLOR EDITOR".to_string(),
+        ])
+        .style(normal_style),
+    );
+    rows.push(Row::new(vec!["SPLIT".into(), " Levi: 123 (+22)".to_string()]).style(normal_style));
+    rows.push(Row::new(vec!["SPLIT".into(), "Games: 444 (-20)".to_string()]).style(normal_style));
+
+    let dist = cfg.ui_conf.column_distance;
+    let widths = [
+        Constraint::Percentage(dist),
+        Constraint::Length(40),
+        Constraint::Max(10),
+    ];
+
+    let t = Table::new(rows)
+        .block(Block::default().borders(Borders::ALL).title("Game Data"))
+        .widths(&widths)
+        .style(styles.game_data)
         .column_spacing(1);
     f.render_widget(t, area);
     f.render_widget(colorizer, area);
@@ -316,9 +494,45 @@ where
     f.render_widget(events_list, area);
 }
 
+pub fn draw_logs_color_edit<B>(
+    f: &mut Frame<B>,
+    area: Rect,
+    logs: &Vec<String>,
+    styles: &crate::config::Styles,
+) where
+    B: Backend,
+{
+    let log_size = if logs.len() > ((area.height - 2) as usize) {
+        logs.len() + 2 - area.height as usize
+    } else {
+        0
+    };
+    let logs: Vec<&str> = logs.iter().skip(log_size).map(|x| x.as_str()).collect();
+
+    let events: Vec<ListItem> = logs
+        .iter()
+        .enumerate()
+        .map(|(i, &message)| {
+            let log;
+            if !logs.is_empty() && i == logs.len() - 1 {
+                log = Spans::from(vec![Span::styled(message, styles.most_recent_log)]);
+            } else {
+                log = Spans::from(vec![Span::styled(message, styles.log_text)]);
+            }
+            ListItem::new(vec![log])
+        })
+        .collect();
+
+    let events_list = List::new(events)
+        .block(Block::default().borders(Borders::ALL).title("Logs"))
+        .start_corner(Corner::TopRight)
+        .style(styles.logs);
+    f.render_widget(events_list, area);
+}
+
 #[allow(unreachable_patterns)] #[rustfmt::skip]
 impl<'a> GameDataModules {
-    pub fn to_rows(&'a self, data: &'a StatsBlockWithFrames) -> Vec<Row> {
+    pub fn to_rows(&'a self, data: &'a StatsBlockWithFrames, extra: &'a ExtraSettings) -> Vec<Row> {
         match self {
             GameDataModules::RunData => create_run_data_rows(&data),
             GameDataModules::Timer => create_timer_rows(&data),
@@ -328,7 +542,7 @@ impl<'a> GameDataModules {
             GameDataModules::Accuracy => create_accuracy_rows(&data),
             GameDataModules::GemsLost(size_style) => create_gems_lost_rows(&data, size_style.clone()),
             GameDataModules::CollectionAccuracy => create_collection_accuracy_rows(&data),
-            GameDataModules::HomingSplits(times) => create_homing_splits_rows(&data, times.clone()),
+            GameDataModules::HomingSplits(times) => create_homing_splits_rows(&data, times.clone(), extra.clone()),
             GameDataModules::HomingUsed => create_homing_used_rows(&data),
             GameDataModules::DaggersEaten => create_daggers_eaten_rows(&data),
             GameDataModules::DdclOutOfDateWarning => ddcl_warning_rows(&data),
@@ -457,10 +671,37 @@ fn create_collection_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     vec![Row::new(["COLLECTION ACC", "100.00%"]).style(normal_style)]
 }
 
-fn create_homing_splits_rows(data: &StatsBlockWithFrames, times: Vec<(String, f32)>) -> Vec<Row> {
+fn create_homing_splits_rows(
+    data: &StatsBlockWithFrames,
+    times: Vec<(String, f32)>,
+    extra: ExtraSettings,
+) -> Vec<Row> {
     let mut splits = Vec::new();
     let normal_style = Style::default().fg(Color::White);
     let real_timer = data.block.time_max + data.block.starting_time;
+
+    if extra.homing_always_visible {
+        let mut last_split = 105;
+        for (name, time) in times {
+            let time_frame = data.get_frame_for_time(time);
+            let hom = if time_frame.is_some() { time_frame.unwrap().homing } else { data.block.homing };
+            splits.push(
+                Row::new(vec![
+                    "SPLIT".to_owned(),
+                    format!(
+                        "{:>4}: {:<4} ({:+})",
+                        name,
+                        hom,
+                        hom - &last_split
+                    ),
+                ])
+                .style(normal_style),
+            );
+            last_split = hom;
+        }
+        return splits;
+    }
+
     let mut last_split = 105;
     for (name, time) in times {
         if time < real_timer {
@@ -529,7 +770,9 @@ fn char_from_intensity(intensity: u8) -> char {
         .unwrap()
 }
 
-pub struct GameDataColorizer {}
+pub struct GameDataColorizer {
+    pub styles: Option<crate::config::Styles>,
+}
 
 fn buffer_as_lines(buf: &Buffer, area: &Rect) -> Vec<String> {
     let w = buf.area().width;
@@ -557,6 +800,20 @@ fn buffer_as_lines(buf: &Buffer, area: &Rect) -> Vec<String> {
 impl<'a> Widget for GameDataColorizer {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let cfg = config::CONFIG.with(|x| x.clone());
+
+        let mut split_name_style = cfg.ui_conf.style.split_name;
+        let mut split_pos_style = cfg.ui_conf.style.split_diff_pos;
+        let mut split_neg_style = cfg.ui_conf.style.split_diff_neg;
+        let mut split_value_style = cfg.ui_conf.style.split_value;
+
+        if self.styles.is_some() {
+            let unw = self.styles.unwrap();
+            split_value_style = unw.split_value;
+            split_neg_style = unw.split_diff_neg;
+            split_name_style = unw.split_name;
+            split_pos_style = unw.split_diff_pos;
+        }
+
         let re = Regex::new(r"SPLIT\s*(\S*):\s*(\d*)\s*\(([\+\-]?\d*)\)").unwrap();
         let lines = buffer_as_lines(&buf, &area);
         for (y, line) in lines.iter().enumerate() {
@@ -571,22 +828,18 @@ impl<'a> Widget for GameDataColorizer {
                     );
                     for x in name.range() {
                         let x = x as u16 + area.x - 2;
-                        buf.get_mut(x, y).set_style(cfg.ui_conf.style.split_name);
+                        buf.get_mut(x, y).set_style(split_name_style);
                     }
                     for x in count.range() {
                         let x = x as u16 + area.x - 2;
-                        buf.get_mut(x, y).set_style(cfg.ui_conf.style.split_value);
+                        buf.get_mut(x, y).set_style(split_value_style);
                     }
 
                     let dstyle = if diff.as_str().to_string().contains("+") {
-                        cfg.ui_conf.style.split_diff_pos
+                        split_pos_style
                     } else {
-                        cfg.ui_conf.style.split_diff_neg
+                        split_neg_style
                     };
-                    buf.get_mut(diff.range().start as u16 - 1 + area.x, y)
-                        .set_style(dstyle);
-                    buf.get_mut(diff.range().end as u16 + 1 + area.x, y)
-                        .set_style(dstyle);
 
                     for x in diff.range() {
                         let x = x as u16 + area.x - 2;
@@ -706,6 +959,12 @@ impl<'a> Widget for AsciiCanvas {
             Alignment::Right => area.width.saturating_sub(max_w as u16),
             Alignment::Left => 0,
         };
+
+        for y in 0..area.height {
+            for x in 0..area.width {
+                buf.get_mut(area.x + x, area.y + y).set_style(self.style);
+            }
+        }
 
         for (y, line) in self.lines.iter().enumerate() {
             for (x, c) in line.chars().enumerate() {

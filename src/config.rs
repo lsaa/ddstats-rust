@@ -10,6 +10,7 @@ use std::sync::Arc;
 use ron::de::from_reader;
 use ron::de::from_str;
 use serde::Deserialize;
+use tui::style::Color;
 use tui::style::Style;
 
 use crate::consts::LOGO_NEW;
@@ -125,7 +126,7 @@ impl std::default::Default for Logo {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, serde::Serialize)]
 pub struct Styles {
     pub logo: Style,
     pub logs: Style,
@@ -136,6 +137,22 @@ pub struct Styles {
     pub split_value: Style,
     pub split_diff_pos: Style,
     pub split_diff_neg: Style,
+}
+
+impl std::default::Default for Styles {
+    fn default() -> Self {
+        Self {
+            logo: Style::default().fg(Color::Red),
+            logs: Style::default().fg(Color::White),
+            log_text: Style::default().fg(Color::White),
+            most_recent_log: Style::default().bg(Color::White).fg(Color::Black),
+            game_data: Style::default().fg(Color::White),
+            split_name: Style::default().fg(Color::Yellow),
+            split_value: Style::default().fg(Color::Magenta),
+            split_diff_pos: Style::default().fg(Color::Green),
+            split_diff_neg: Style::default().fg(Color::Red),
+        }
+    }
 }
 
 #[derive(Deserialize)]

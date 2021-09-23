@@ -41,6 +41,7 @@ impl MainTask {
         let conn: Arc<RwLock<ConnectionState>> = Arc::new(RwLock::default());
         let last_poll: Arc<RwLock<StatsBlockWithFrames>> = Arc::new(RwLock::default());
         let logs: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::default());
+        let color_edit: Arc<RwLock<crate::config::Styles>> = Arc::new(RwLock::default());
         let (exit_send, exit_recv) = tokio::sync::broadcast::channel(3);
         let config = cfg();
 
@@ -63,12 +64,12 @@ impl MainTask {
         }).await;
 
         if config.ui_conf.enabled {
-            UiThread::init(last_poll.clone(), logs.clone(), conn.clone(), exit_send.clone()).await;
+            UiThread::init(last_poll.clone(), logs.clone(), conn.clone(), exit_send.clone(), color_edit.clone()).await;
         }
 
         if !config.offline {
             GameSubmissionClient::init(sge_recv, log_send.clone()).await;
-            WebsocketServer::init(last_poll.clone()).await;
+            WebsocketServer::init(last_poll.clone(), color_edit.clone()).await;
         }
 
         main_task.run(exit_recv).await;

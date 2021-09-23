@@ -22,6 +22,7 @@ fn get_marker() -> usize {
     use crate::consts;
     let r = futures::executor::block_on(get_ddstats_memory_marker(OperatingSystem::Linux));
     if r.is_err() {
+        log::info!("{:?}", r);
         return consts::LINUX_BLOCK_START;
     }
     r.unwrap().value
@@ -169,7 +170,8 @@ pub async fn get_ddstats_memory_marker(os: OperatingSystem) -> Result<MarkerResp
         .uri(uri)
         .body(Body::empty())
         .unwrap();
-    let mut res = tokio::time::timeout(Duration::from_secs(4), client.request(req)).await??;
+    log::info!("Attempting to pull marker");
+    let mut res = tokio::time::timeout(Duration::from_secs(2), client.request(req)).await??;
     log::info!("Pulled Marker Sucessfully");
     let mut body = Vec::new();
     while let Some(chunk) = res.body_mut().next().await {
