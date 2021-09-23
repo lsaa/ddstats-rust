@@ -64,7 +64,7 @@ impl GameSubmissionClient {
 #[rustfmt::skip]
 fn should_submit(data: &SubmitGameEvent) -> bool{
     let cfg = crate::config::cfg();
-    let is_non_default = data.0.level_hash_md5.ne(V3_SURVIVAL_HASH);
+    let is_non_default = data.0.level_hash_md5.ne(&V3_SURVIVAL_HASH.to_uppercase());
     if is_non_default && !cfg.submit.non_default_spawnsets { return false; }
     if data.0.is_replay && !cfg.submit.replay_stats { return false; }
     if !data.0.is_replay && !cfg.submit.stats { return false; }

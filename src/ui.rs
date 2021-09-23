@@ -91,7 +91,7 @@ impl UiThread {
         tokio::spawn(async move {
             let mut in_color_mode = false;
             let mut extra_settings = ExtraSettings {
-                homing_always_visible: true,
+                homing_always_visible: false,
             };
 
             let (tx, rx) = mpsc::channel();
