@@ -7,3 +7,5 @@ sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
 rm -f $PROTOC_ZIP
 
 sudo apt install xorg-dev
+
+sudo apt install openssl
