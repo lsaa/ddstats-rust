@@ -46,10 +46,17 @@ impl GameSubmissionClient {
                 }
 
                 if res.is_ok() {
+                    let res = res.as_ref().unwrap().get_ref();
                     log_sender
-                        .send(format!("Submitted {}", res.unwrap().get_ref().game_id))
+                        .send(format!("Submitted {}", res.game_id))
                         .await
                         .expect("AAA");
+
+                    if cfg.auto_clipboard {
+	                    let mut clipboard = arboard::Clipboard::new().unwrap();
+                        let cool = format!("{}/games/{}", cfg.host, res.game_id);
+                        clipboard.set_text(cool.into()).unwrap();
+                    }
                 } else {
                     log_sender
                         .send(format!("Failed to Submit"))
