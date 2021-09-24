@@ -18,7 +18,9 @@ jobs:
       - name: Install deps
         run: sh .github/workflows/install_deps.sh
       - name: Docker Test
-        run: docker build ./.github/workflows
+        run: |
+          docker build ./.github/workflows -t rust_dock
+          docker run -dp 3000:3000 rust_dock
       - name: Install latest rust
         uses: actions-rs/toolchain@v1
         with:
