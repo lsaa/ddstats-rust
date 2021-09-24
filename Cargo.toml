@@ -32,7 +32,7 @@ num-traits = "0.2"
 num-derive = "0.2"
 spin_sleep = "1.0.0"
 hyper = "0.14.12"
-hyper-tls = "0.5.0"
+hyper-tls = { version = "0.5.0", features = ["vendored"] }
 warp = "0.3.1"
 lazy_static = "1.4.0"
 
