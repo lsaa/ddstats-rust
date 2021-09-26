@@ -6,6 +6,7 @@ use crate::{
     client::SubmitGameEvent,
     consts::{SUBMIT_RETRY_MAX, V3_SURVIVAL_HASH},
 };
+use clipboard::{ClipboardContext, ClipboardProvider};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub struct GameSubmissionClient;
@@ -53,9 +54,9 @@ impl GameSubmissionClient {
                         .expect("AAA");
 
                     if cfg.auto_clipboard {
-	                    let mut clipboard = arboard::Clipboard::new().unwrap();
-                        let cool = format!("{}/games/{}", cfg.host, res.game_id);
-                        clipboard.set_text(cool.into()).unwrap();
+                        let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+                        let new_clip = format!("{}/games/{}", cfg.host, res.game_id);
+                        ctx.set_contents(new_clip).unwrap();
                     }
                 } else {
                     log_sender
