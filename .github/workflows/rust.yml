@@ -15,8 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install deps
-        run: sh .github/workflows/install_deps.sh
+      - name: Setup Docker (Linux)
+        run: docker build -t cross-rust-linux docker/linux
+      - name: Setup Docker (Windows)
+        run: docker build -t cross-rust-windows docker/windows
       - name: Install latest rust
         uses: actions-rs/toolchain@v1
         with:
