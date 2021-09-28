@@ -59,25 +59,23 @@ impl LiveGameClient {
                             }
                         }
                     } else {
-
                         let waker = futures::task::noop_waker();
                         let mut cx = std::task::Context::from_waker(&waker);
                         if let Poll::Ready(Some(submit_evt)) = ssio_recv.poll_recv(&mut cx) {
-                            if should_submit_sio(&last_data) {
-                                let mut notify_pb = cfg.discord.notify_player_best;
-                                let mut notify_above_1000 = cfg.discord.notify_above_1000;
+                            let mut notify_pb = cfg.discord.notify_player_best;
+                            let mut notify_above_1000 = cfg.discord.notify_above_1000;
 
-                                if last_data.block.is_replay {
-                                    notify_pb = false;
-                                    notify_above_1000 = false;
-                                }
-                                log::info!("Submitting SIO");
-                                let sio_submit = current_socket.as_mut().unwrap().send_message(&Message::text(create_sio_submit(submit_evt, (notify_pb, notify_above_1000))));
-                                if sio_submit.is_err() {
-                                    current_socket = None;
-                                    lgc.sio_status = SioStatus::Disconnected;
-                                    continue;
-                                }
+                            if last_data.block.is_replay {
+                                notify_pb = false;
+                                notify_above_1000 = false;
+                            }
+
+                            log::info!("Submitting SIO {}", create_sio_submit(&submit_evt, (notify_pb, notify_above_1000)));
+                            let sio_submit = current_socket.as_mut().unwrap().send_message(&Message::text(create_sio_submit(&submit_evt, (notify_pb, notify_above_1000))));
+                            if sio_submit.is_err() {
+                                current_socket = None;
+                                lgc.sio_status = SioStatus::Disconnected;
+                                continue;
                             }
                         }
 
@@ -152,9 +150,9 @@ fn should_submit_sio(data: &StatsBlockWithFrames) -> bool {
     || cfg.stream.replay_stats && data.block.is_replay
 }
 
-fn create_sio_submit(ev: SubmitSioEvent, (notify_pb, notify_above_1000): (bool, bool)) -> String {
+fn create_sio_submit(ev: &SubmitSioEvent, (notify_pb, notify_above_1000): (bool, bool)) -> String {
     format!("42[\"game_submitted\",{},{},{}]",
-        ev.game_id,
+        ev.game_id as i32,
         notify_pb,
         notify_above_1000
     )

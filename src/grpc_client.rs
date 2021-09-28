@@ -56,10 +56,12 @@ impl GameSubmissionClient {
                         ctx.set_contents(new_clip).unwrap();
                     }
 
-                    let _ssio_res = ssio_send
-                        .send(SubmitSioEvent { game_id: res.game_id })
-                        .await;
+                    if should_submit_sio(&sge) {
+                        let _ssio_res = ssio_send
+                            .send(SubmitSioEvent { game_id: res.game_id })
+                            .await;
 
+                    }
                 } else {
                     log_sender
                         .send(format!("Failed to Submit"))
@@ -69,6 +71,15 @@ impl GameSubmissionClient {
             }
         });
     }
+}
+
+#[rustfmt::skip]
+fn should_submit_sio(data: &SubmitGameEvent) -> bool {
+    let cfg = crate::config::cfg();
+    let is_non_default = data.0.level_hash_md5.ne(&V3_SURVIVAL_HASH.to_uppercase());
+    if is_non_default && !cfg.submit.non_default_spawnsets { return false; }
+    cfg.stream.stats && !data.0.is_replay
+    || cfg.stream.replay_stats && data.0.is_replay
 }
 
 #[rustfmt::skip]
