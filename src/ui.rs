@@ -8,6 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use num_traits::FromPrimitive;
 use regex::Regex;
 use tokio::sync::RwLock;
 use tui::{
@@ -28,12 +29,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, LeaveAlternateScreen},
 };
 
-use crate::{
-    client::ConnectionState,
-    config::{self, LogoStyle},
-    consts::*,
-    mem::StatsBlockWithFrames,
-};
+use crate::{client::{ConnectionState, GameStatus}, config::{self, LogoStyle}, consts::*, mem::StatsBlockWithFrames};
 
 thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
@@ -554,7 +550,19 @@ impl<'a> GameDataModules {
 fn create_run_data_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
     let player = data.block.replay_player_username().to_owned();
-    vec![Row::new(["REPLAY".to_string(), player]).style(normal_style)]
+    let status = FromPrimitive::from_i32(data.block.status);
+    let status = match status {
+        Some(st) => match st {
+            GameStatus::Menu => "MENU",
+            GameStatus::Lobby => "LOBBY",
+            GameStatus::Dead => crate::consts::DEATH_TYPES[data.block.death_type as usize],
+            GameStatus::Title => "TITLE",
+            GameStatus::Playing => "ALIVE",
+            GameStatus::OtherReplay | GameStatus::OwnReplayFromLastRun | GameStatus::OwnReplayFromLeaderboard => "REPLAY",
+        }.to_string(),
+        None => "CONNECTING".to_string()
+    };
+    vec![Row::new([status, player]).style(normal_style)]
 }
 
 fn create_timer_rows(data: &StatsBlockWithFrames) -> Vec<Row> {

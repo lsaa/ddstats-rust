@@ -6,14 +6,7 @@
 // I HATE WINDOWS
 // I HATE WINDOWS
 
-use crate::{
-    client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent},
-    config::cfg,
-    grpc_client::GameSubmissionClient,
-    mem::StatsBlockWithFrames,
-    ui::UiThread,
-    websocket_server::WebsocketServer,
-};
+use crate::{client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent}, config::cfg, grpc_client::GameSubmissionClient, mem::StatsBlockWithFrames, socketio_client::LiveGameClient, ui::UiThread, websocket_server::WebsocketServer};
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
@@ -43,6 +36,7 @@ impl MainTask {
         let logs: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::default());
         let color_edit: Arc<RwLock<crate::config::Styles>> = Arc::new(RwLock::default());
         let (exit_send, exit_recv) = tokio::sync::broadcast::channel(3);
+        let (ssio_send, ssio_recv) = channel(3);
         let config = cfg();
 
         let mut main_task = MainTask {
@@ -68,8 +62,9 @@ impl MainTask {
         }
 
         if !config.offline {
-            GameSubmissionClient::init(sge_recv, log_send.clone()).await;
+            GameSubmissionClient::init(sge_recv, log_send.clone(), ssio_send.clone()).await;
             WebsocketServer::init(last_poll.clone(), color_edit.clone()).await;
+            LiveGameClient::init(conn.clone(), last_poll.clone(), ssio_recv).await;
         }
 
         main_task.run(exit_recv).await;

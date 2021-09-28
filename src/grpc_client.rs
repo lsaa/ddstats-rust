@@ -2,17 +2,14 @@
 //  grpc_client.rs - I hate GRPC
 //
 
-use crate::{
-    client::SubmitGameEvent,
-    consts::{SUBMIT_RETRY_MAX, V3_SURVIVAL_HASH},
-};
+use crate::{client::SubmitGameEvent, consts::{SUBMIT_RETRY_MAX, V3_SURVIVAL_HASH}, socketio_client::SubmitSioEvent};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub struct GameSubmissionClient;
 
 impl GameSubmissionClient {
-    pub async fn init(mut sge_recv: Receiver<SubmitGameEvent>, log_sender: Sender<String>) {
+    pub async fn init(mut sge_recv: Receiver<SubmitGameEvent>, log_sender: Sender<String>, ssio_send: Sender<SubmitSioEvent>) {
         tokio::spawn(async move {
             use crate::grpc_models::game_recorder_client::GameRecorderClient;
             use crate::grpc_models::{ClientStartRequest, SubmitGameRequest};
@@ -58,6 +55,11 @@ impl GameSubmissionClient {
                         let new_clip = format!("{}/games/{}", cfg.host, res.game_id);
                         ctx.set_contents(new_clip).unwrap();
                     }
+
+                    let _ssio_res = ssio_send
+                        .send(SubmitSioEvent { game_id: res.game_id })
+                        .await;
+
                 } else {
                     log_sender
                         .send(format!("Failed to Submit"))

@@ -8,6 +8,7 @@ pub mod threads;
 pub mod ui;
 pub mod web_clients;
 pub mod websocket_server;
+pub mod socketio_client;
 
 #[tokio::main]
 async fn main() {

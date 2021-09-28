@@ -116,7 +116,7 @@ impl GamePollClient {
             if self.should_submit(&data, &status) {
                 log::info!("Attempting to submit run");
                 let to_submit = GamePollClient::create_submit_event(&data, &last);
-                self.submit_retry_until_sucess(to_submit).await;
+                self.submit_retry_until_success(to_submit).await;
                 self.submitted_data = true;
             }
 
@@ -125,7 +125,7 @@ impl GamePollClient {
         }
     }
 
-    async fn submit_retry_until_sucess(&mut self, event: SubmitGameEvent) {
+    async fn submit_retry_until_success(&mut self, event: SubmitGameEvent) {
         let mut res = self.state.sge_sender.send(event.clone()).await;
         loop {
             if res.is_ok() {

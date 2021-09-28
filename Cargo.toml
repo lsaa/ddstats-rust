@@ -36,6 +36,9 @@ hyper-tls = { version = "0.5.0", features = ["vendored"] }
 warp = "0.3.1"
 lazy_static = "1.4.0"
 clipboard = "0.5.0"
+native-tls = "0.2.8"
+websocket = "0.26.2"
+anyhow = "1.0.43"
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }
