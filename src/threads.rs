@@ -74,6 +74,7 @@ impl MainTask {
         let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 3.));
         loop {
             interval.tick().await;
+            log::info!("MAIN  TICK {:?}", Instant::now());
             tokio::select! {
                 new_log = self.state.log_recv.recv() => self.handle_log(new_log.unwrap()).await,
                 _msg = exit_message.recv() => break,
