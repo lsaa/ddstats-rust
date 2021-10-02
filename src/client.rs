@@ -56,6 +56,7 @@ impl GamePollClient {
 
             loop {
                 interval.tick().await;
+                log::info!("GAME TICK!");
                 c.tick().await;
             }
         });
