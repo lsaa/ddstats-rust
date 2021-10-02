@@ -388,7 +388,7 @@ pub struct StatsDataBlock {
 
 impl StatsDataBlock {
     pub fn player_username(&self) -> String {
-        String::from_utf8(self.username.to_vec()).expect("Couldn't decode username string")
+        String::from_utf8(self.username.to_vec()).expect("Couldn't decode username string").replace("\u{0}", "")
     }
 
     pub fn replay_player_username(&self) -> String {

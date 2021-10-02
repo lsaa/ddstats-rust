@@ -9,6 +9,7 @@ pub mod ui;
 pub mod web_clients;
 pub mod websocket_server;
 pub mod socketio_client;
+pub mod crypto_encoder;
 
 #[tokio::main]
 async fn main() {

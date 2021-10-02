@@ -4,6 +4,7 @@
 
 use crate::consts::*;
 use crate::mem::{GameConnection, StatsBlockWithFrames, StatsFrame};
+use crate::web_clients::dd_info;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::sync::Arc;
@@ -117,6 +118,10 @@ impl GamePollClient {
                 log::info!("Attempting to submit run");
                 let to_submit = GamePollClient::create_submit_event(&data, &last);
                 self.submit_retry_until_success(to_submit).await;
+                let c = data.clone();
+                tokio::spawn(async move {
+                    let _ = dd_info::submit(&c).await;
+                });
                 self.submitted_data = true;
             }
 

@@ -17,13 +17,11 @@ impl GameSubmissionClient {
             let mut client = GameRecorderClient::connect(cfg.grpc_host.clone())
                 .await
                 .expect("No Connection");
-            let res = client
+            let _res = client
                 .client_start(ClientStartRequest {
-                    version: "0.6.8".to_owned(),
+                    version: "0.6.9".to_owned(),
                 })
-                .await
-                .expect("A");
-            log::info!("MOTD: {}", res.get_ref().motd);
+                .await;
             while let Some(sge) = sge_recv.recv().await {
                 log::info!("Got submit req");
 

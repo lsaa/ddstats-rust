@@ -25,7 +25,7 @@ simple-logging = "2.0.2"
 regex = "1.5.4"
 scan_fmt = "0.2.6"
 futures = "0.3.17"
-tokio = { version = "1.11.0", default-features = false, features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1.11.0", default-features = false, features = ["full"] }
 tokio-stream = { version = "0.1.7", features = ["net"] }
 log-panics = "2.0.0"
 num-traits = "0.2"
@@ -39,6 +39,13 @@ clipboard = "0.5.0"
 native-tls = "0.2.8"
 websocket = "0.26.2"
 anyhow = "1.0.43"
+aes = "0.7.5"
+block-modes = "0.8.1"
+pbkdf2 = { version = "0.7", default-features = false }
+ring = "0.16.20"
+base32 = "0.4.0"
+base64 = "0.13.0"
+tokio-native-tls = "0.3.0"
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }
