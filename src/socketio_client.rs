@@ -98,11 +98,6 @@ impl LiveGameClient {
                                 death_type = last_data.block.death_type as i32;
                             }
 
-                            //Funny HAHA no HAUNTED
-                            if death_type == 16 {
-                                death_type = 11;
-                            }
-
                             if should_submit_sio(&last_data) {
                                 let res = current_socket.as_mut().unwrap().send_message(&Message::text(create_submit_stats_message(&last_data, death_type)));
                                 if res.is_err() {

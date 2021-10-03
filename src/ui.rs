@@ -599,13 +599,14 @@ fn get_homing(data: &StatsBlockWithFrames) -> u32 {
 #[allow(unreachable_patterns)]
 fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
+    let time = if data.block.time_lvl3 == 0. { 0. } else { data.block.time_max_homing };
     match style {
         SizeStyle::Full => {
             vec![Row::new([
                 "HOMING".into(),
                 format!(
                     "{} [MAX {} at {:.4}s]",
-                    data.block.homing, data.block.max_homing, data.block.time_max_homing
+                    data.block.homing, data.block.max_homing, time
                 ),
             ])
             .style(normal_style)]
@@ -615,7 +616,7 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
                 "HOMING".into(),
                 format!(
                     "{} [{} @ {:.4}s]",
-                    data.block.homing, data.block.max_homing, data.block.time_max_homing
+                    data.block.homing, data.block.max_homing, time
                 ),
             ])
             .style(normal_style)]

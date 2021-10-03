@@ -8,7 +8,7 @@ use crate::web_clients::dd_info;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc::Sender, RwLock};
 use tokio::time;
 
@@ -30,6 +30,7 @@ pub struct ClientSharedState {
     pub connection_sender: Arc<RwLock<ConnectionState>>,
     pub sge_sender: Sender<SubmitGameEvent>,
     pub last_poll: Arc<RwLock<StatsBlockWithFrames>>,
+    pub snowflake: Arc<RwLock<u128>>
 }
 
 pub struct GamePollClient {
@@ -103,6 +104,10 @@ impl GamePollClient {
         }
 
         if let Ok(data) = self.connection.read_stats_block_with_frames() {
+            if let Some(snowflake) = self.new_snowflake(&data).await {
+                self.state.snowflake.write().await.clone_from(&snowflake);
+            }
+
             if data.frames.last().is_none() {
                 return;
             }
@@ -129,6 +134,37 @@ impl GamePollClient {
             self.last_game_state = status;
             self.state.last_poll.write().await.clone_from(&data);
         }
+    }
+
+    async fn new_snowflake(&mut self, data: &StatsBlockWithFrames) -> Option<u128> {
+        let status: GameStatus = FromPrimitive::from_i32(data.block.status).unwrap();
+        let old = self.last_game_state;
+        let snowflake = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+        let current = *self.state.snowflake.read().await;
+
+        if old != GameStatus::OtherReplay && status == GameStatus::OtherReplay {
+            return Some(snowflake);
+        }
+
+        if old != GameStatus::OwnReplayFromLeaderboard && status == GameStatus::OwnReplayFromLeaderboard {
+            return Some(snowflake);
+        }
+
+        if old != GameStatus::OwnReplayFromLastRun && status == GameStatus::OwnReplayFromLastRun {
+            return Some(snowflake);
+        }
+
+        if old != GameStatus::Menu && status == GameStatus::Menu {
+            return Some(snowflake);
+        }
+
+        if old == GameStatus::Playing && status == GameStatus::Playing {
+            if (snowflake - current) > (data.block.time * 1100.) as u128 {
+                return Some(snowflake);
+            }
+        }
+
+        None
     }
 
     async fn submit_retry_until_success(&mut self, event: SubmitGameEvent) {

@@ -11,7 +11,7 @@ use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
@@ -21,13 +21,19 @@ use warp::{
     ws::{Message, WebSocket},
     Filter,
 };
+use std::cell::RefCell;
 
 pub struct WebsocketServer;
 
 type ColorStyles = Arc<RwLock<crate::config::Styles>>;
+type Snowflake = Arc<RwLock<u128>>;
+
+thread_local! {
+    static LAST_SNOWFLAKE: RefCell<u128> = RefCell::new(0);
+}
 
 impl WebsocketServer {
-    pub async fn init(poll: PollData, styles: ColorStyles) {
+    pub async fn init(poll: PollData, styles: ColorStyles, snowflake: Snowflake) {
         tokio::spawn(async move {
             log::info!("initializing server on port: 13666");
 
@@ -45,7 +51,8 @@ impl WebsocketServer {
             let stream = warp::path("miniblock")
                 .and(warp::get())
                 .and(with_poll_data(poll.clone()))
-                .map(|poll: PollData| {
+                .and(with_snowflake(snowflake.clone()))
+                .map(|poll: PollData, flake: Snowflake| {
                     let interval = interval(Duration::from_secs_f32(1. / 36.));
                     let mut is_first = true;
                     let stream = IntervalStream::new(interval);
@@ -54,12 +61,14 @@ impl WebsocketServer {
                             is_first = false;
                             return sse_first();
                         }
+                        let d = futures::executor::block_on(poll.read()).clone();
 
                         let mini = MiniBlock::from_stats(
-                            &futures::executor::block_on(poll.read()).clone(),
+                            &d,
+                            futures::executor::block_on(flake.read()).clone()
                         );
 
-                        sse_miniblock(mini)
+                        sse_miniblock(mini, &d)
                     });
                     warp::sse::reply(event_stream)
                 });
@@ -223,6 +232,10 @@ fn with_poll_data(c: PollData) -> impl Filter<Extract = (PollData,), Error = Inf
     warp::any().map(move || c.clone())
 }
 
+fn with_snowflake(c: Snowflake) -> impl Filter<Extract = (Snowflake,), Error = Infallible> + Clone {
+    warp::any().map(move || c.clone())
+}
+
 fn with_color_edit_styles(
     c: ColorStyles,
 ) -> impl Filter<Extract = (ColorStyles,), Error = Infallible> + Clone {
@@ -241,6 +254,8 @@ pub struct MiniBlock {
     pub gems_total: i32,
     pub homing: i32,
     pub kills: i32,
+    pub status: i32,
+    pub snowflake: u128
 }
 
 #[derive(serde::Serialize)]
@@ -255,10 +270,11 @@ pub struct MiniDto {
     #[serde(rename = "type")]
     pub _type: String,
     pub data: MiniBlock,
+    pub extra: Option<StatsBlockWithFrames>
 }
 
 impl MiniBlock {
-    pub fn from_stats(data: &StatsBlockWithFrames) -> Self {
+    pub fn from_stats(data: &StatsBlockWithFrames, snowflake: u128) -> Self {
         Self {
             time: data.block.time,
             daggers_fired: data.block.daggers_fired,
@@ -270,6 +286,8 @@ impl MiniBlock {
             gems_total: data.block.gems_total,
             homing: data.block.homing,
             kills: data.block.kills,
+            status: data.block.status,
+            snowflake
         }
     }
 }
@@ -278,10 +296,22 @@ fn sse_first() -> Result<Event, Infallible> {
     Ok(warp::sse::Event::default().data("{\"type\":\"hello\"}".to_string()))
 }
 
-fn sse_miniblock(miniblock: MiniBlock) -> Result<Event, Infallible> {
-    let pain = serde_json::to_string(&MiniDto {
-        _type: "miniblock".into(),
-        data: miniblock,
-    });
-    Ok(warp::sse::Event::default().data(pain.unwrap()))
+fn sse_miniblock(miniblock: MiniBlock, data: &StatsBlockWithFrames) -> Result<Event, Infallible> {
+    LAST_SNOWFLAKE.with(|sn| {
+        let mut sn = sn.borrow_mut();
+        let mut extra = None;
+        if sn.ne(&miniblock.snowflake) {
+            *sn = miniblock.snowflake;
+            let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() - miniblock.snowflake;
+            if t < Duration::from_secs(20).as_millis() {
+                extra = Some(data.clone());
+            }
+        }
+        let pain = serde_json::to_string(&MiniDto {
+            _type: "miniblock".into(),
+            data: miniblock,
+            extra
+        });
+        Ok(warp::sse::Event::default().data(pain.unwrap()))
+    })
 }

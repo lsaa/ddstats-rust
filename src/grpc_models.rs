@@ -30,11 +30,6 @@ impl StatsFrame {
 
 impl SubmitGameRequest {
     pub fn from_compiled_run(other: crate::client::CompiledRun) -> Self {
-        let death_type = if other.death_type == 16 {
-            11
-        } else {
-            other.death_type
-        };
         Self {
             version: other.version.clone(),
             player_id: other.player_id.clone(),
@@ -49,7 +44,7 @@ impl SubmitGameRequest {
             enemies_alive_max_time: other.enemies_alive_max_time.clone(),
             homing_daggers_max: other.homing_daggers_max.clone(),
             homing_daggers_max_time: other.homing_daggers_max_time.clone(),
-            death_type,
+            death_type: other.death_type,
             is_replay: other.is_replay.clone(),
             replay_player_id: other.replay_player_id.clone(),
             daggers_hit: other.daggers_hit.clone(),
