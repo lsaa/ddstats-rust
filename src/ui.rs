@@ -567,11 +567,18 @@ fn create_run_data_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
 
 fn create_timer_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
+
+    if data.block.is_replay {
+        return vec![Row::new([
+            "TIMER".into(),
+            format!("{:.4}/{:.4}s", data.block.time, data.block.time_max + data.block.starting_time),
+        ]).style(normal_style)];
+    }
+
     vec![Row::new([
         "TIMER".into(),
         format!("{:.4}s", data.block.time_max + data.block.starting_time),
-    ])
-    .style(normal_style)]
+    ]).style(normal_style)]
 }
 
 fn create_gems_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
@@ -629,14 +636,16 @@ fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
     if let Some(frame) = data.frames.last() {
         let mut acc = frame.daggers_hit as f32 / frame.daggers_fired as f32;
+        let pacifist = frame.daggers_hit == 0;
+        let pacifist = if pacifist { "[PACIFIST]" } else { "" };
         if acc.is_nan() {
             acc = 1.00;
         }
         return vec![
-            Row::new(["ACCURACY".into(), format!("{:.2}%", acc * 100.)]).style(normal_style)
+            Row::new(["ACCURACY".into(), format!("{:.2}% {}", acc * 100., pacifist)]).style(normal_style)
         ];
     }
-    vec![Row::new(["ACCURACY", "100.00%"]).style(normal_style)]
+    vec![Row::new(["ACCURACY", "100.00% [PACIFIST]"]).style(normal_style)]
 }
 
 #[rustfmt::skip] #[allow(unreachable_patterns)]
@@ -737,7 +746,7 @@ fn create_homing_used_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
     vec![Row::new([
         "HOMING USED".into(),
-        format!("{}", data.homing_usage_from_frames()),
+        format!("{}", data.homing_usage_from_frames(Some(data.block.time))),
     ])
     .style(normal_style)]
 }

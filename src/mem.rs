@@ -388,12 +388,13 @@ pub struct StatsDataBlock {
 
 impl StatsDataBlock {
     pub fn player_username(&self) -> String {
-        String::from_utf8(self.username.to_vec()).expect("Couldn't decode username string").replace("\u{0}", "")
+        String::from_utf8(self.username.to_vec()).unwrap_or("unknown".into()).replace("\u{0}", "")
     }
 
     pub fn replay_player_username(&self) -> String {
         String::from_utf8(self.replay_player_name.to_vec())
-            .expect("Couldn't decode replay player username")
+            .unwrap_or("unknown".to_owned())
+            .replace("\u{0}", "")
     }
 
     pub fn level_hash(&self) -> String {
@@ -442,10 +443,21 @@ impl StatsBlockWithFrames {
         return Some(&self.frames[real_time as usize]);
     }
 
-    pub fn homing_usage_from_frames(&self) -> u32 {
+    pub fn get_frames_until_time(&self, mut time: f32) -> Vec<&StatsFrame> {
+        let mut res = vec![];
+        if time as usize + 1 > self.frames.len() {
+            time = self.frames.len() as f32 - 1.;
+        }
+        res.extend(self.frames[..time as usize].iter());
+        res
+    }
+
+    #[rustfmt::skip]
+    pub fn homing_usage_from_frames(&self, time: Option<f32>) -> u32 {
         let mut neg_diff = 0;
         let mut last_frame_homing = 0;
-        for frame in &self.frames {
+        let cutoff = if time.is_none() { f32::MAX } else { time.unwrap() };
+        for frame in &self.get_frames_until_time(cutoff) {
             if frame.homing < last_frame_homing {
                 neg_diff += -(frame.homing - last_frame_homing);
             }
