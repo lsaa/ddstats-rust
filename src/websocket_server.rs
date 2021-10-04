@@ -7,10 +7,12 @@ use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
 use regex::{Match, Regex};
 use ron::ser::{to_string_pretty, PrettyConfig};
+use std::borrow::BorrowMut;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tokio::time::interval;
@@ -21,16 +23,13 @@ use warp::{
     ws::{Message, WebSocket},
     Filter,
 };
-use std::cell::RefCell;
 
 pub struct WebsocketServer;
 
 type ColorStyles = Arc<RwLock<crate::config::Styles>>;
 type Snowflake = Arc<RwLock<u128>>;
 
-thread_local! {
-    static LAST_SNOWFLAKE: RefCell<u128> = RefCell::new(0);
-}
+static LAST_SNOWFLAKE: AtomicU64 = AtomicU64::new(0);
 
 impl WebsocketServer {
     pub async fn init(poll: PollData, styles: ColorStyles, snowflake: Snowflake) {
@@ -297,21 +296,20 @@ fn sse_first() -> Result<Event, Infallible> {
 }
 
 fn sse_miniblock(miniblock: MiniBlock, data: &StatsBlockWithFrames) -> Result<Event, Infallible> {
-    LAST_SNOWFLAKE.with(|sn| {
-        let mut sn = sn.borrow_mut();
-        let mut extra = None;
-        if sn.ne(&miniblock.snowflake) {
-            *sn = miniblock.snowflake;
-            let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() - miniblock.snowflake;
-            if t < Duration::from_secs(20).as_millis() {
-                extra = Some(data.clone());
-            }
+    let sn = &LAST_SNOWFLAKE;
+    let v = sn.load(std::sync::atomic::Ordering::Relaxed);
+    let mut extra = None;
+    if v != miniblock.snowflake as u64 {
+        sn.store(miniblock.snowflake as u64, std::sync::atomic::Ordering::Release);
+        let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() - miniblock.snowflake;
+        if t < Duration::from_secs(20).as_millis() {
+            extra = Some(data.clone());
         }
-        let pain = serde_json::to_string(&MiniDto {
-            _type: "miniblock".into(),
-            data: miniblock,
-            extra
-        });
-        Ok(warp::sse::Event::default().data(pain.unwrap()))
-    })
+    }
+    let pain = serde_json::to_string(&MiniDto {
+        _type: "miniblock".into(),
+        data: miniblock,
+        extra
+    });
+    Ok(warp::sse::Event::default().data(pain.unwrap()))
 }

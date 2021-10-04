@@ -2,7 +2,7 @@ cargo-features = ["strip"]
 
 [package]
 name = "ddstats-rust"
-version = "0.6.8"
+version = "0.6.9"
 edition = "2018"
 
 [profile.release]

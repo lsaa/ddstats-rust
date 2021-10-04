@@ -408,13 +408,19 @@ pub fn draw_info_table<B>(
         Constraint::Length(40),
         Constraint::Max(10),
     ];
+
+    let new_rect = Rect::new(area.x + 3, area.y + 2, area.width - 3, area.height - 3);
     let t = Table::new(rows)
-        .block(Block::default().borders(Borders::ALL).title("Game Data"))
+        .block(Block::default().borders(Borders::empty()))
         .widths(&widths)
         .style(cfg.ui_conf.style.game_data)
         .column_spacing(1);
-    f.render_widget(t, area);
-    f.render_widget(colorizer, area);
+    let border = Table::new(vec![])
+        .block(Block::default().borders(Borders::ALL).title("Game Data"))
+        .style(cfg.ui_conf.style.game_data);
+    f.render_widget(border, area);
+    f.render_widget(t, new_rect);
+    f.render_widget(colorizer, new_rect);
 }
 
 pub fn draw_info_table_color_edit<B>(f: &mut Frame<B>, area: Rect, styles: &crate::config::Styles)
