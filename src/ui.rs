@@ -138,7 +138,7 @@ impl UiThread {
 
                 if in_color_mode {
                     let s = color_edit_styles.read().await.clone();
-                    draw_color_editor_mode(&mut term, &*s);
+                    draw_color_editor_mode(&mut term, &s);
                     continue;
                 }
 

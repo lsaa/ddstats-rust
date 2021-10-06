@@ -2,3 +2,7 @@
 /.undodir
 Session.vim
 debug_logs.txt
+modules.xml
+ddstats-rust.iml
+vcs.xml
+/.idea
