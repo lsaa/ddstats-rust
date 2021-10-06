@@ -164,6 +164,9 @@ impl GamePollClient {
         }
 
         if old == GameStatus::Playing && status == GameStatus::Playing {
+            if current > snowflake {
+                return Some(snowflake);
+            }
             if (snowflake - current) > (data.block.time * 1100.) as u128 {
                 return Some(snowflake);
             }

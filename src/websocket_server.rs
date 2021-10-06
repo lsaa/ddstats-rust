@@ -59,11 +59,19 @@ impl WebsocketServer {
                             is_first = false;
                             return sse_first();
                         }
-                        let d = futures::executor::block_on(poll.read()).clone();
 
+                        let d = poll.try_read();
+                        let snowflake_res = flake.try_read();
+
+                        if d.is_err() || snowflake_res.is_err() {
+                            return sse_empty();
+                        }
+
+                        let d = d.unwrap().clone();
+                        let snowflaked = snowflake_res.unwrap().clone();
                         let mini = MiniBlock::from_stats(
                             &d,
-                            futures::executor::block_on(flake.read()).clone()
+                            snowflaked
                         );
 
                         sse_miniblock(mini, &d)
@@ -322,6 +330,10 @@ impl MiniBlock {
 
 fn sse_first() -> Result<Event, Infallible> {
     Ok(warp::sse::Event::default().data("{\"type\":\"hello\"}".to_string()))
+}
+
+fn sse_empty() -> Result<Event, Infallible> {
+    Ok(warp::sse::Event::default().data("{\"type\":\"empty\"}".to_string()))
 }
 
 fn sse_miniblock(miniblock: MiniBlock, data: &StatsBlockWithFrames) -> Result<Event, Infallible> {

@@ -30,7 +30,6 @@ tokio-stream = { version = "0.1.7", features = ["net"] }
 log-panics = "2.0.0"
 num-traits = "0.2"
 num-derive = "0.2"
-spin_sleep = "1.0.0"
 hyper = "0.14.12"
 hyper-tls = { version = "0.5.0", features = ["vendored"] }
 warp = "0.3.1"
