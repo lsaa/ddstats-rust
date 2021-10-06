@@ -132,12 +132,12 @@ impl UiThread {
                         },
                     }
                 }
-                let read_data = latest_data.read().await;
-                let log_list = logs.read().await;
-                let connection_status = connected.read().await;
+                let read_data = latest_data.read().await.clone();
+                let log_list = logs.read().await.clone();
+                let connection_status = connected.read().await.clone();
 
                 if in_color_mode {
-                    let s = color_edit_styles.read().await;
+                    let s = color_edit_styles.read().await.clone();
                     draw_color_editor_mode(&mut term, &*s);
                     continue;
                 }
@@ -148,7 +148,7 @@ impl UiThread {
                         .constraints([Constraint::Percentage(100)])
                         .split(f.size());
 
-                    if *connection_status != ConnectionState::Connected
+                    if connection_status != ConnectionState::Connected
                         && cfg.ui_conf.orb_connection_animation
                     {
                         draw_levi(f, layout[0]);

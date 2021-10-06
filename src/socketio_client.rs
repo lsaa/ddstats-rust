@@ -45,7 +45,7 @@ impl LiveGameClient {
             let mut last_ping = Instant::now();
             loop {
                 sio_tick_interval.tick().await;
-                let conn = client_status.read().await;
+                let conn = client_status.read().await.clone();
                 let last_data = last_poll.read().await.clone();
                 if conn.eq(&ConnectionState::Connected) {
                     if lgc.sio_status.ne(&SioStatus::LoggedIn) {

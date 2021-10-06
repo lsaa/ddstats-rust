@@ -7,6 +7,7 @@ use crate::mem::{GameConnection, StatsBlockWithFrames, StatsFrame};
 use crate::web_clients::dd_info;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc::Sender, RwLock};
@@ -57,7 +58,6 @@ impl GamePollClient {
 
             loop {
                 interval.tick().await;
-                log::info!("GAME TICK! {:?}", Instant::now());
                 c.tick().await;
             }
         });
@@ -132,7 +132,12 @@ impl GamePollClient {
             }
 
             self.last_game_state = status;
-            self.state.last_poll.write().await.clone_from(&data);
+
+            if let Ok(mut writer) = self.state.last_poll.try_write() {
+                writer.clone_from(&data);
+            } else {
+                log::info!("Unable to secure data write");
+            }
         }
     }
 
