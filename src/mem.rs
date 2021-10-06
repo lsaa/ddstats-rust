@@ -388,13 +388,16 @@ pub struct StatsDataBlock {
 
 impl StatsDataBlock {
     pub fn player_username(&self) -> String {
-        String::from_utf8(self.username.to_vec()).unwrap_or("unknown".into()).replace("\u{0}", "")
+        String::from_utf8(self.username.to_vec()).unwrap_or("unknown".into())
+            .split("\u{0}")
+            .next().unwrap().to_string()
     }
 
     pub fn replay_player_username(&self) -> String {
         String::from_utf8(self.replay_player_name.to_vec())
             .unwrap_or("unknown".to_owned())
-            .replace("\u{0}", "")
+            .split("\u{0}")
+            .next().unwrap().to_string()
     }
 
     pub fn level_hash(&self) -> String {

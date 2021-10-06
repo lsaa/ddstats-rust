@@ -96,7 +96,7 @@ v0.6.8                                                                          
 
 )";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub struct UiConf {
     pub enabled: bool,
     pub logo_style: LogoStyle,
@@ -112,7 +112,7 @@ pub struct UiConf {
 #[derive(Deserialize)]
 pub struct Logo(pub String);
 
-#[derive(Deserialize, PartialEq)]
+#[derive(Deserialize, PartialEq, serde::Serialize)]
 pub enum LogoStyle {
     Auto,
     Mini,
@@ -155,7 +155,7 @@ impl std::default::Default for Styles {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub struct DDStatsRustConfig {
     pub host: String,
     pub grpc_host: String,
@@ -170,28 +170,28 @@ pub struct DDStatsRustConfig {
     pub ddcl: Ddcl,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub struct Stream {
     pub stats: bool,
     pub replay_stats: bool,
     pub non_default_spawnsets: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub struct Submit {
     pub stats: bool,
     pub replay_stats: bool,
     pub non_default_spawnsets: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub struct Discord {
     pub notify_above_1000: bool,
     pub notify_player_best: bool,
     pub notify_custom_spawnsets: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub struct Ddcl {
     pub submit: bool,
     pub replays: bool,

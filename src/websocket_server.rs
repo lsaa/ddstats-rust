@@ -2,7 +2,7 @@
 //  websocket_server.rs - Funny Data for Funny Readers
 //
 
-use crate::mem::StatsBlockWithFrames;
+use crate::mem::{StatsBlockWithFrames, StatsDataBlock, StatsFrame};
 use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
 use regex::{Match, Regex};
@@ -122,9 +122,14 @@ async fn handle_websocket_message(
     if msg.eq("gimme") {
         let _ = sender
             .send(Message::text(
-                serde_json::to_string(&data.read().await.clone()).unwrap(),
+                serde_json::to_string(&StatsDto::from_sbwf(data.read().await.clone())).unwrap(),
             ))
             .await;
+    }
+
+    if msg.eq("config") {
+        let t = serde_json::to_string(crate::config::cfg().as_ref()).unwrap();
+        let _ = sender.send(Message::text(t)).await;
     }
 
     if msg.starts_with("clr-set") {
@@ -265,11 +270,36 @@ pub struct FullDto {
 }
 
 #[derive(serde::Serialize)]
+pub struct StatsDto {
+    pub block: StatsDataBlock,
+    pub frames: Vec<StatsFrame>,
+    pub additional_info: AdditionalInfo,
+}
+
+#[derive(serde::Serialize)]
+pub struct AdditionalInfo {
+    pub frame_count: usize,
+}
+
+impl StatsDto {
+    pub fn from_sbwf(data: StatsBlockWithFrames) -> Self {
+        let s = data.frames.len();
+        Self {
+            block: data.block,
+            frames: data.frames,
+            additional_info: AdditionalInfo {
+                frame_count: s,
+            }
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
 pub struct MiniDto {
     #[serde(rename = "type")]
     pub _type: String,
     pub data: MiniBlock,
-    pub extra: Option<StatsBlockWithFrames>
+    pub extra: Option<StatsDto>
 }
 
 impl MiniBlock {
@@ -303,7 +333,13 @@ fn sse_miniblock(miniblock: MiniBlock, data: &StatsBlockWithFrames) -> Result<Ev
         sn.store(miniblock.snowflake as u64, std::sync::atomic::Ordering::Release);
         let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() - miniblock.snowflake;
         if t < Duration::from_secs(20).as_millis() {
-            extra = Some(data.clone());
+            let mut extrae = data.clone();
+            if data.frames.len() > 0 {
+                extrae.frames = vec![data.frames[0]];
+            } else {
+                extrae.frames = vec![];
+            }
+            extra = Some(StatsDto::from_sbwf(extrae));
         }
     }
     let pain = serde_json::to_string(&MiniDto {
