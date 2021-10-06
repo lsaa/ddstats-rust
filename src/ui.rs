@@ -37,7 +37,7 @@ thread_local! {
 
 // Modular Game Data
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub enum GameDataModules {
     RunData,
     Timer,
@@ -54,7 +54,7 @@ pub enum GameDataModules {
     Spacing,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, serde::Serialize)]
 pub enum SizeStyle {
     Minimal,
     Compact,

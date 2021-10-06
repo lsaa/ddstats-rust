@@ -109,7 +109,7 @@ pub struct UiConf {
     pub column_distance: u16,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 pub struct Logo(pub String);
 
 #[derive(Deserialize, PartialEq, serde::Serialize)]
