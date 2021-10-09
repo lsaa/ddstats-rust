@@ -11,7 +11,7 @@ use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc::Sender, RwLock};
-use tokio::time;
+use tokio::time::{self, timeout};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ConnectionState {
@@ -132,11 +132,9 @@ impl GamePollClient {
             }
 
             self.last_game_state = status;
-
-            if let Ok(mut writer) = self.state.last_poll.try_write() {
+            let writer = timeout(Duration::from_secs_f32(1./120.), self.state.last_poll.write()).await;
+            if let Ok(mut writer) = writer {
                 writer.clone_from(&data);
-            } else {
-                log::info!("Unable to secure data write");
             }
         }
     }

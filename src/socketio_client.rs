@@ -37,7 +37,6 @@ pub struct SubmitSioEvent {
 impl LiveGameClient {
     pub async fn init(client_status: ClientStatus, last_poll: LastPoll, mut ssio_recv: Receiver<SubmitSioEvent>) {
         tokio::spawn(async move {
-            //let res = socket.send_message(&Message::text("42[\"login\", 127920]"));
             let cfg = crate::config::cfg();
             let mut lgc = LiveGameClient { sio_status: SioStatus::Disconnected };
             let mut current_socket = None;
@@ -146,11 +145,14 @@ fn should_submit_sio(data: &StatsBlockWithFrames) -> bool {
 }
 
 fn create_sio_submit(ev: &SubmitSioEvent, (notify_pb, notify_above_1000): (bool, bool)) -> String {
-    format!("42[\"game_submitted\",{},{},{}]",
+    format!("42[\"game_submitted\",{},true,true]", ev.game_id)
+    /*
+        format!("42[\"game_submitted\",{},{},{}]",
         ev.game_id as i32,
         notify_pb,
         notify_above_1000
     )
+    */
 }
 
 fn create_change_status_message(player_id: i32, status: i32) -> String {
