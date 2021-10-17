@@ -3,12 +3,13 @@
 //
 
 use std::{sync::Arc, task::Poll, time::{Duration, Instant}};
+use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
 use native_tls::{Protocol, TlsConnector};
 use anyhow::Result;
 use num_traits::FromPrimitive;
 use tokio::sync::{RwLock, mpsc::Receiver};
 use websocket::{ClientBuilder, Message, sync::{Client, stream::NetworkStream}};
-use crate::{client::{ConnectionState, GameStatus}, mem::StatsBlockWithFrames};
+use crate::client::ConnectionState;
 
 /////////////////////////////////
 
@@ -145,14 +146,7 @@ fn should_submit_sio(data: &StatsBlockWithFrames) -> bool {
 }
 
 fn create_sio_submit(ev: &SubmitSioEvent, (notify_pb, notify_above_1000): (bool, bool)) -> String {
-    format!("42[\"game_submitted\",{},true,true]", ev.game_id)
-    /*
-        format!("42[\"game_submitted\",{},{},{}]",
-        ev.game_id as i32,
-        notify_pb,
-        notify_above_1000
-    )
-    */
+    format!("42[\"game_submitted\",{},{},{}]", ev.game_id,notify_pb, notify_above_1000)
 }
 
 fn create_change_status_message(player_id: i32, status: i32) -> String {

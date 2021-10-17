@@ -6,8 +6,9 @@
 // I HATE WINDOWS
 // I HATE WINDOWS
 
-use crate::{client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent}, config::cfg, grpc_client::GameSubmissionClient, mem::StatsBlockWithFrames, socketio_client::LiveGameClient, ui::UiThread, websocket_server::WebsocketServer};
+use crate::{client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent}, config::cfg, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::WebsocketServer};
 use std::{sync::Arc, time::{Duration, Instant, UNIX_EPOCH}};
+use ddcore_rs::models::StatsBlockWithFrames;
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     RwLock,

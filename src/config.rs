@@ -91,7 +91,7 @@ const DEFAULT_CFG: &str = "// ddstats-rust config
 ███    ███ ███    ███          ███     ███       ███    ███     ███              ███
 ███   ▄███ ███   ▄███    ▄█    ███     ███       ███    ███     ███        ▄█    ███
 ████████▀  ████████▀   ▄████████▀     ▄████▀     ███    █▀     ▄████▀    ▄████████▀⠀
-v0.6.8                                                                          rust\",
+v0.6.9                                                                          rust\",
     ),
 
 )";
@@ -139,6 +139,12 @@ pub struct Styles {
     pub split_diff_neg: Style,
 }
 
+#[derive(Deserialize, serde::Serialize)]
+pub struct MemOverride {
+    pub block_start: usize,
+    pub process_name: String
+}
+
 impl std::default::Default for Styles {
     fn default() -> Self {
         Self {
@@ -167,7 +173,10 @@ pub struct DDStatsRustConfig {
     pub discord: Discord,
     pub ui_conf: UiConf,
     pub linux_restart_as_child: bool,
+    pub use_linux_proton: bool,
     pub ddcl: Ddcl,
+    #[serde(default)]
+    pub mem_override: Option<MemOverride>,
 }
 
 #[derive(Deserialize, serde::Serialize)]

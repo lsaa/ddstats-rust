@@ -386,16 +386,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "ddstats-rust"
-version = "0.6.9"
+name = "ddcore-rs"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d7da5fc62e62f3a2629d19a88527ed8ef5aed0970a4f6319a4bd672986c107a"
 dependencies = [
  "aes",
  "anyhow",
  "base32",
  "base64 0.13.0",
  "block-modes",
+ "futures 0.3.17",
+ "hyper 0.14.12",
+ "hyper-tls",
+ "native-tls",
+ "num-derive",
+ "num-traits",
+ "pbkdf2",
+ "process-memory",
+ "ring",
+ "scan_fmt",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "ddstats-rust"
+version = "0.6.9"
+dependencies = [
+ "anyhow",
  "clipboard",
  "crossterm",
+ "ddcore-rs",
  "futures 0.3.17",
  "hyper 0.14.12",
  "hyper-tls",
@@ -405,26 +429,19 @@ dependencies = [
  "native-tls",
  "num-derive",
  "num-traits",
- "pbkdf2",
- "process-memory",
  "prost",
  "regex",
- "ring",
  "ron",
- "scan_fmt",
  "serde",
  "serde_json",
  "simple-logging",
- "sysinfo",
  "tokio",
- "tokio-native-tls",
  "tokio-stream",
  "tonic",
  "tonic-build",
  "tui",
  "warp",
  "websocket",
- "winapi 0.3.9",
 ]
 
 [[package]]
@@ -1272,15 +1289,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
 
 [[package]]
-name = "openssl-src"
-version = "111.16.0+1.1.1l"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ab2173f69416cf3ec12debb5823d244127d23a9b127d5a5189aa97c5fa2859f"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "openssl-sys"
 version = "0.9.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1289,7 +1297,6 @@ dependencies = [
  "autocfg 1.0.1",
  "cc",
  "libc",
- "openssl-src",
  "pkg-config",
  "vcpkg",
 ]

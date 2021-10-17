@@ -24,6 +24,7 @@ impl GameSubmissionClient {
                 .await;
             while let Some(sge) = sge_recv.recv().await {
                 log::info!("Got submit req");
+                log::info!("{:?}", sge.0.enemies_killed);
 
                 if !should_submit(&sge) {
                     continue;

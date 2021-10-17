@@ -2,7 +2,7 @@
 //  websocket_server.rs - Funny Data for Funny Readers
 //
 
-use crate::mem::{StatsBlockWithFrames, StatsDataBlock, StatsFrame};
+use ddcore_rs::models::{StatsBlockWithFrames, StatsDataBlock, StatsFrame};
 use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
 use regex::{Match, Regex};

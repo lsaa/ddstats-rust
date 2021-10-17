@@ -58,6 +58,7 @@ Breaking Changes:
     grpc_host: "http://172.104.11.117:80",
     auto_clipboard: true,
     linux_restart_as_child: true,
+    use_linux_proton: false,
     stream: (
         stats: true,
         replay_stats: true,
@@ -112,7 +113,7 @@ Breaking Changes:
                 // ("580", 580.),
                 ("700", 709.),
                 ("800", 800.),
-                ("860", 875.),
+                ("880", 875.),
                 ("940", 942.),
                 ("1000", 996.),
                 ("1040", 1047.),

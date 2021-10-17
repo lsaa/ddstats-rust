@@ -8,6 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
 use num_traits::FromPrimitive;
 use regex::Regex;
 use tokio::sync::RwLock;
@@ -29,7 +30,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, LeaveAlternateScreen},
 };
 
-use crate::{client::{ConnectionState, GameStatus}, config::{self, LogoStyle}, consts::*, mem::StatsBlockWithFrames};
+use crate::{client::ConnectionState, config::{self, LogoStyle}, consts::*};
 
 thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
@@ -765,14 +766,12 @@ fn create_daggers_eaten_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
 
 fn ddcl_warning_rows(_data: &StatsBlockWithFrames) -> Vec<Row> {
     let normal_style = Style::default().fg(Color::White);
-    if *crate::web_clients::dd_info::DDLC_UP_TO_DATE.as_ref() {
-        return vec![];
-    }
-    vec![Row::new([
+    return vec![];
+    /*vec![Row::new([
         String::from("DDCL WARN"),
         "OUT OF DATE CLIENT ||  WON'T SUBMIT".into(),
     ])
-    .style(normal_style)]
+    .style(normal_style)] */
 }
 
 pub struct LeviRipple {

@@ -3,11 +3,11 @@
 //
 
 use crate::consts::*;
-use crate::mem::{GameConnection, StatsBlockWithFrames, StatsFrame};
-use crate::web_clients::dd_info;
-use num_derive::FromPrimitive;
+use ddcore_rs::ddinfo;
+use ddcore_rs::ddinfo::ddcl_submit::DdclSecrets;
+use ddcore_rs::memory::{ConnectionParams, GameConnection, MemoryOverride, OperatingSystem};
+use ddcore_rs::models::{GameStatus, StatsBlockWithFrames, StatsFrame};
 use num_traits::FromPrimitive;
-use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc::Sender, RwLock};
@@ -72,7 +72,23 @@ impl GamePollClient {
     }
 
     async fn not_connected(&mut self) {
-        if let Ok(new_connection) = GameConnection::try_create(DD_PROCESS) {
+        let cfg = crate::config::cfg();
+        let os = if cfg.use_linux_proton {
+            OperatingSystem::LinuxProton
+        } else {
+            if cfg!(target_os = "linux") {
+                OperatingSystem::Linux
+            } else if cfg!(target_os = "winwdows") {
+                OperatingSystem::Windows
+            } else {
+                OperatingSystem::Windows
+            }
+        };
+        if let Ok(new_connection) = GameConnection::try_create(ConnectionParams {
+            create_child: cfg.linux_restart_as_child,
+            operating_system: os,
+            overrides: MemoryOverride::default()
+        }) {
             self.connection_state = ConnectionState::Connecting;
             self.connection = new_connection;
             self.connecting_start = Instant::now();
@@ -87,7 +103,7 @@ impl GamePollClient {
             *self.state.connection_sender.write().await = self.connection_state.clone();
         }
 
-        if let Ok(_) = self.connection.read_stats_block() {
+        if let Ok(_) = self.connection.read_stats_block_with_frames() {
             self.connection_state = ConnectionState::Connected;
             self.state
                 .log_sender
@@ -113,7 +129,7 @@ impl GamePollClient {
             }
 
             let last = data.frames.last().unwrap();
-            let status: GameStatus = FromPrimitive::from_i32(data.block.status).unwrap();
+            let status: GameStatus = data.block.status();
             let old = self.last_game_state;
 
             if GamePollClient::new_run_started(&status, &old) {
@@ -126,7 +142,7 @@ impl GamePollClient {
                 self.submit_retry_until_success(to_submit).await;
                 let c = data.clone();
                 tokio::spawn(async move {
-                    let _ = dd_info::submit(&c).await;
+                    let _ = ddinfo::ddcl_submit::submit(&c, ddcl_secrets(), "ddstats-rust", "0.6.9.1").await;
                 });
                 self.submitted_data = true;
             }
@@ -219,7 +235,7 @@ impl GamePollClient {
             daggers_eaten: last.daggers_eaten,
             daggers_fired: last.daggers_fired,
             daggers_hit: last.daggers_hit,
-            enemies_killed: data.block.kills,
+            enemies_killed: last.kills,
             enemies_alive: last.enemies_alive,
             level_gems: last.level_gems,
             homing_daggers: last.homing,
@@ -249,7 +265,9 @@ impl GamePollClient {
     }
 
     async fn resolve_connection(&mut self) -> bool {
-        if !self.connection.is_alive() {
+        if let Err(e) = self.connection.is_alive_res() {
+            log::warn!("Disconnected: {:?}", e);
+            log::info!("{:?}", self.connection.last_fetch);
             self.connection_state = ConnectionState::NotConnected;
             *self.state.connection_sender.write().await = self.connection_state.clone();
             return false;
@@ -293,16 +311,12 @@ pub struct CompiledRun {
     pub stats: Vec<StatsFrame>,
 }
 
-#[derive(FromPrimitive, Debug, PartialEq, Clone, Copy)]
-pub enum GameStatus {
-    Title = 0,
-    Menu,
-    Lobby,
-    Playing,
-    Dead,
-    OwnReplayFromLastRun,
-    OwnReplayFromLeaderboard,
-    OtherReplay,
+#[rustfmt::skip]
+fn ddcl_secrets() -> Option<DdclSecrets> {
+    let iv = std::option_env!("DDCL_SECRETS_IV")?.to_owned();
+    let pass = std::option_env!("DDCL_SECRETS_PASS")?.to_owned();
+    let salt = std::option_env!("DDCL_SECRETS_SALT")?.to_owned();
+    Some(DdclSecrets { iv, pass, salt })
 }
 
 #[derive(Clone)]
