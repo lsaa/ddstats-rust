@@ -388,6 +388,8 @@ dependencies = [
 [[package]]
 name = "ddcore-rs"
 version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41c3b90fd1d7ca544fba0511eed5a845f1430a75d4dd3d6b9907efdd43cf1a57"
 dependencies = [
  "aes",
  "anyhow",

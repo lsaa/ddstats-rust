@@ -184,7 +184,7 @@ fn connect() -> Result<Client<Box<dyn NetworkStream + Send>>> {
         .max_protocol_version(Some(Protocol::Tlsv12))
         .build()?;
 
-    ClientBuilder::new("wss://ddstats.com/socket.io/?EIO=3&transport=websocket")?
+    ClientBuilder::new("ws://localhost:5000/socket.io/?EIO=3&transport=websocket")?
         .connect(Some(tls_connector))
         .map_err(|_| anyhow::Error::msg("Websocket Error"))
 }

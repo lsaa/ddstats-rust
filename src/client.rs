@@ -206,6 +206,8 @@ impl GamePollClient {
         if data.block.is_replay {
             player_id = data.block.replay_player_id;
             replay_player_id = data.block.player_id;
+        } else {
+            replay_player_id = 0;
         }
 
         SubmitGameEvent(CompiledRun {

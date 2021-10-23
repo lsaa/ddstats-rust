@@ -62,6 +62,8 @@ impl GameSubmissionClient {
 
                     }
                 } else {
+                    log::error!("Coudln't submit: {:?}", res);
+
                     log_sender
                         .send(format!("Failed to Submit"))
                         .await
