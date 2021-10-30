@@ -8,11 +8,15 @@ use ddcore_rs::ddinfo::ddcl_submit::DdclSecrets;
 use ddcore_rs::memory::{ConnectionParams, GameConnection, MemoryOverride, OperatingSystem};
 use ddcore_rs::models::{GameStatus, StatsBlockWithFrames, StatsFrame};
 use num_traits::FromPrimitive;
+use tokio::sync::OnceCell;
 use tokio::sync::mpsc::Receiver;
 use std::sync::Arc;
+use std::task::Poll;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc::Sender, RwLock};
 use tokio::time::{self, timeout};
+
+static MARKER_ADDR: OnceCell<usize> = OnceCell::const_new();
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ConnectionState {
@@ -86,10 +90,28 @@ impl GamePollClient {
                 OperatingSystem::Windows
             }
         };
+
         if let Ok(new_connection) = GameConnection::try_create(ConnectionParams {
             create_child: cfg.linux_restart_as_child,
             operating_system: os,
-            overrides: MemoryOverride::default(),
+            overrides: MemoryOverride {
+                process_name: cfg.process_name_override.clone(),
+                block_marker: Some(MARKER_ADDR.get_or_init(|| { async {
+                    if cfg.block_marker_override.is_some() {
+                        return cfg.block_marker_override.unwrap().clone();
+                    }
+
+                    if let Ok(marker_response) = ddcore_rs::ddinfo::get_ddstats_memory_marker(ddinfo::get_os()).await {
+                        return marker_response.value.clone();
+                    }
+
+                    if cfg!(target_os = "winwdows") {
+                        crate::consts::WINDOWS_BLOCK_START
+                    } else {
+                        crate::consts::LINUX_BLOCK_START
+                    }
+                }}).await.clone()),
+            },
         }) {
             self.connection_state = ConnectionState::Connecting;
             self.connection = new_connection;
@@ -126,7 +148,9 @@ impl GamePollClient {
                 self.state.snowflake.write().await.clone_from(&snowflake);
             }
 
-            if let Some(replay) = self.state.replay_request.recv().await {
+            let waker = futures::task::noop_waker();
+            let mut cx = std::task::Context::from_waker(&waker);
+            if let Poll::Ready(Some(replay)) = self.state.replay_request.poll_recv(&mut cx) {
                 let _res = self.connection.play_replay(replay);
             }
 

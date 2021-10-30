@@ -139,12 +139,6 @@ pub struct Styles {
     pub split_diff_neg: Style,
 }
 
-#[derive(Deserialize, serde::Serialize)]
-pub struct MemOverride {
-    pub block_start: usize,
-    pub process_name: String
-}
-
 impl std::default::Default for Styles {
     fn default() -> Self {
         Self {
@@ -176,7 +170,9 @@ pub struct DDStatsRustConfig {
     pub use_linux_proton: bool,
     pub ddcl: Ddcl,
     #[serde(default)]
-    pub mem_override: Option<MemOverride>,
+    pub block_marker_override: Option<usize>,
+    #[serde(default)]
+    pub process_name_override: Option<String>,
 }
 
 #[derive(Deserialize, serde::Serialize)]
