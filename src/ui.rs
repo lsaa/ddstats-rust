@@ -2,11 +2,7 @@
 // Funny UI
 //
 
-use std::{
-    io::{stdout, Stdout},
-    sync::{mpsc, Arc},
-    time::{Duration, Instant},
-};
+use std::{io::{stdout, Stdout}, sync::{Arc, mpsc::self}, time::{Duration, Instant}};
 
 use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
 use num_traits::FromPrimitive;
@@ -80,6 +76,7 @@ impl UiThread {
         connected: Arc<RwLock<ConnectionState>>,
         exit_broadcast: tokio::sync::broadcast::Sender<bool>,
         color_edit_styles: Arc<RwLock<crate::config::Styles>>,
+        replay_request_send: tokio::sync::mpsc::Sender<Vec<u8>>
     ) {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
@@ -105,8 +102,9 @@ impl UiThread {
 
             loop {
                 interval.tick().await;
-
-                if let Ok(ev) = rx.try_recv() {
+                let ev_res = rx.try_recv();
+                if ev_res.is_ok() {
+                    let ev = ev_res.unwrap();
                     match ev {
                         Event::Input(event) => match event.code {
                             KeyCode::Char('q') => {
@@ -128,11 +126,16 @@ impl UiThread {
                             },
                             KeyCode::F(5) => {
                                 extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
+                            },
+                            KeyCode::F(8) => {
+                                let replay = ddcore_rs::ddinfo::get_replay_by_id(1747).await.unwrap();
+                                replay_request_send.send(replay).await.expect("UH OH!");
                             }
                             _ => {}
                         },
                     }
                 }
+
                 let read_data = latest_data.read().await.clone();
                 let log_list = logs.read().await.clone();
                 let connection_status = connected.read().await.clone();
@@ -561,6 +564,7 @@ fn create_run_data_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
             GameStatus::Dead => crate::consts::DEATH_TYPES[data.block.death_type as usize],
             GameStatus::Title => "TITLE",
             GameStatus::Playing => "ALIVE",
+            GameStatus::LocalReplay => "LOCAL REPLAY",
             GameStatus::OtherReplay | GameStatus::OwnReplayFromLastRun | GameStatus::OwnReplayFromLeaderboard => "REPLAY",
         }.to_string(),
         None => "CONNECTING".to_string()

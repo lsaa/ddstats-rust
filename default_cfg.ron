@@ -58,7 +58,7 @@ Breaking Changes:
     grpc_host: "http://172.104.11.117:80",
     auto_clipboard: true,
     linux_restart_as_child: true,
-    use_linux_proton: false,
+    use_linux_proton: true,
     stream: (
         stats: true,
         replay_stats: true,

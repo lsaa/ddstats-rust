@@ -8,6 +8,7 @@ use ddcore_rs::ddinfo::ddcl_submit::DdclSecrets;
 use ddcore_rs::memory::{ConnectionParams, GameConnection, MemoryOverride, OperatingSystem};
 use ddcore_rs::models::{GameStatus, StatsBlockWithFrames, StatsFrame};
 use num_traits::FromPrimitive;
+use tokio::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc::Sender, RwLock};
@@ -31,7 +32,8 @@ pub struct ClientSharedState {
     pub connection_sender: Arc<RwLock<ConnectionState>>,
     pub sge_sender: Sender<SubmitGameEvent>,
     pub last_poll: Arc<RwLock<StatsBlockWithFrames>>,
-    pub snowflake: Arc<RwLock<u128>>
+    pub snowflake: Arc<RwLock<u128>>,
+    pub replay_request: Receiver<Vec<u8>>,
 }
 
 pub struct GamePollClient {
@@ -87,7 +89,7 @@ impl GamePollClient {
         if let Ok(new_connection) = GameConnection::try_create(ConnectionParams {
             create_child: cfg.linux_restart_as_child,
             operating_system: os,
-            overrides: MemoryOverride::default()
+            overrides: MemoryOverride::default(),
         }) {
             self.connection_state = ConnectionState::Connecting;
             self.connection = new_connection;
@@ -124,6 +126,10 @@ impl GamePollClient {
                 self.state.snowflake.write().await.clone_from(&snowflake);
             }
 
+            if let Some(replay) = self.state.replay_request.recv().await {
+                let _res = self.connection.play_replay(replay);
+            }
+
             if data.frames.last().is_none() {
                 return;
             }
@@ -141,9 +147,14 @@ impl GamePollClient {
                 let to_submit = GamePollClient::create_submit_event(&data, &last);
                 self.submit_retry_until_success(to_submit).await;
                 let c = data.clone();
-                tokio::spawn(async move {
-                    let _ = ddinfo::ddcl_submit::submit(&c, ddcl_secrets(), "ddstats-rust", "0.6.9.1").await;
-                });
+                log::info!("{}", data.block.replay_buffer_length);
+                if let Ok(replay) = self.connection.replay_bin() {
+                    if c.block.status == 3 || c.block.status == 4 || c.block.status == 5 {
+                        tokio::spawn(async move {
+                            let _res = ddinfo::ddcl_submit::submit(&c, ddcl_secrets(), "ddstats-rust", "0.6.9.1", replay).await;
+                        });
+                    }
+                }
                 self.submitted_data = true;
             }
 
@@ -201,7 +212,7 @@ impl GamePollClient {
 
     fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame) -> SubmitGameEvent {
         let mut player_id = data.block.player_id;
-        let mut replay_player_id = data.block.replay_player_id;
+        let mut replay_player_id;
 
         if data.block.is_replay {
             player_id = data.block.replay_player_id;

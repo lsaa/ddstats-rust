@@ -7,6 +7,7 @@ use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
 use regex::{Match, Regex};
 use ron::ser::{to_string_pretty, PrettyConfig};
+use tokio::sync::mpsc::Sender;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
@@ -31,7 +32,7 @@ type Snowflake = Arc<RwLock<u128>>;
 static LAST_SNOWFLAKE: AtomicU64 = AtomicU64::new(0);
 
 impl WebsocketServer {
-    pub async fn init(poll: PollData, styles: ColorStyles, snowflake: Snowflake) {
+    pub async fn init(poll: PollData, styles: ColorStyles, snowflake: Snowflake, replay_request_send: Sender<Vec<u8>>) {
         tokio::spawn(async move {
             log::info!("initializing server on port: 13666");
 
@@ -41,9 +42,10 @@ impl WebsocketServer {
                 .and(warp::ws())
                 .and(with_poll_data(poll.clone()))
                 .and(with_color_edit_styles(styles.clone()))
-                .map(|ws: warp::ws::Ws, poll, styles| {
+                .and(with_replay_sender(replay_request_send.clone()))
+                .map(|ws: warp::ws::Ws, poll, styles, replay_send| {
                     log::info!("upgrading connection to websocket");
-                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll, styles))
+                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll, styles, replay_send))
                 });
 
             let stream = warp::path("miniblock")
@@ -95,7 +97,7 @@ impl WebsocketServer {
     }
 }
 
-async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles: ColorStyles) {
+async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles: ColorStyles, replay_send: Sender<Vec<u8>>) {
     let (mut sender, mut receiver) = websocket.split();
 
     while let Some(body) = receiver.next().await {
@@ -107,7 +109,7 @@ async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles
             }
         };
 
-        handle_websocket_message(message, &mut sender, data.clone(), styles.clone()).await;
+        handle_websocket_message(message, &mut sender, data.clone(), styles.clone(), replay_send.clone()).await;
     }
 
     log::info!("client disconnected");
@@ -118,6 +120,7 @@ async fn handle_websocket_message(
     sender: &mut SplitSink<WebSocket, Message>,
     data: PollData,
     styles: ColorStyles,
+    replay_send: Sender<Vec<u8>>,
 ) {
     let msg = if let Ok(s) = message.to_str() {
         s
@@ -137,6 +140,12 @@ async fn handle_websocket_message(
     if msg.eq("config") {
         let t = serde_json::to_string(crate::config::cfg().as_ref()).unwrap();
         let _ = sender.send(Message::text(t)).await;
+    }
+
+    if msg.starts_with("ddcl_replay") {
+        let id = i32::from_str_radix(msg.split(" ").nth(1).unwrap(), 10).unwrap();
+        let replay = ddcore_rs::ddinfo::get_replay_by_id(id).await.expect("Fail on Replay");
+        let _ = replay_send.send(replay).await;
     }
 
     if msg.starts_with("clr-set") {
@@ -240,6 +249,10 @@ fn color_from_match(enum_type: Match, red: Match, green: Match, blue: Match) -> 
 type PollData = Arc<RwLock<StatsBlockWithFrames>>;
 
 fn with_poll_data(c: PollData) -> impl Filter<Extract = (PollData,), Error = Infallible> + Clone {
+    warp::any().map(move || c.clone())
+}
+
+fn with_replay_sender(c: Sender<Vec<u8>>) -> impl Filter<Extract = (Sender<Vec<u8>>,), Error = Infallible> + Clone {
     warp::any().map(move || c.clone())
 }
 

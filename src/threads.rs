@@ -32,6 +32,7 @@ impl MainTask {
     pub async fn init() {
         let (log_send, log_recv) = channel(10);
         let (sge_send, sge_recv) = channel(3);
+        let (replay_request_send, replay_request_recv) = channel(3);
         let conn: Arc<RwLock<ConnectionState>> = Arc::new(RwLock::default());
         let last_poll: Arc<RwLock<StatsBlockWithFrames>> = Arc::new(RwLock::default());
         let current_snowflake: Arc<RwLock<u128>> = Arc::new(RwLock::new(std::time::SystemTime::now().duration_since(UNIX_EPOCH).expect("error").as_millis()));
@@ -58,15 +59,24 @@ impl MainTask {
             sge_sender: sge_send,
             last_poll: last_poll.clone(),
             snowflake: current_snowflake.clone(),
+            replay_request: replay_request_recv,
         }).await;
 
         if config.ui_conf.enabled {
-            UiThread::init(last_poll.clone(), logs.clone(), conn.clone(), exit_send.clone(), color_edit.clone()).await;
+            UiThread::init(
+                last_poll.clone(), 
+                logs.clone(), 
+                conn.clone(), 
+                exit_send.clone(), 
+                color_edit.clone(),
+                replay_request_send.clone()
+            ).await;
         }
 
         if !config.offline {
+            log::info!("ONLINE MODE!");
             GameSubmissionClient::init(sge_recv, log_send.clone(), ssio_send.clone()).await;
-            WebsocketServer::init(last_poll.clone(), color_edit.clone(), current_snowflake.clone()).await;
+            WebsocketServer::init(last_poll.clone(), color_edit.clone(), current_snowflake.clone(), replay_request_send.clone()).await;
             LiveGameClient::init(conn.clone(), last_poll.clone(), ssio_recv).await;
         }
 
