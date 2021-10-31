@@ -151,7 +151,10 @@ impl GamePollClient {
             let waker = futures::task::noop_waker();
             let mut cx = std::task::Context::from_waker(&waker);
             if let Poll::Ready(Some(replay)) = self.state.replay_request.poll_recv(&mut cx) {
-                let _res = self.connection.play_replay(replay);
+                let res = self.connection.play_replay(replay);
+                if res.is_ok() {
+                    self.connection.maximize_dd();
+                }
             }
 
             if data.frames.last().is_none() {

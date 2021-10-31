@@ -11,7 +11,7 @@ lto = true
 codegen-units = 1
 
 [dependencies]
-ddcore-rs = { version = "0.1.7", features = ["memory", "ddinfo", "ddcl_submit"] }
+ddcore-rs = { version = "0.1.7", features = ["memory", "ddinfo", "ddcl_submit"], path = "../ddcore-rs" }
 tonic = "0.5.2"
 prost = "0.8"
 tui = { version = "0.16.0", default-features = false, features = ["crossterm", "serde"]}
