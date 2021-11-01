@@ -144,8 +144,16 @@ async fn handle_websocket_message(
 
     if msg.starts_with("ddcl_replay") {
         let id = i32::from_str_radix(msg.split(" ").nth(1).unwrap(), 10).unwrap();
-        let replay = ddcore_rs::ddinfo::get_replay_by_id(id).await.expect("Fail on Replay");
-        let _ = replay_send.send(replay).await;
+        let replay_sender_clone = replay_send.clone();
+        tokio::spawn(async move {
+            if let Ok(replay) = ddcore_rs::ddinfo::get_replay_by_id(id).await {
+                let _ = replay_sender_clone.send(replay).await;
+            } else {
+                log::warn!("Failed to load DDCL replay {}", id);
+            }
+        });
+        let t = format!("[OK] Loaded DDCL Replay {}", id);
+        let _ = sender.send(Message::text(t)).await;
     }
 
     if msg.starts_with("clr-set") {
