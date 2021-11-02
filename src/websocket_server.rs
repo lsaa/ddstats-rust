@@ -130,15 +130,15 @@ async fn handle_websocket_message(
     };
 
     if msg.eq("gimme") {
+        let t = format!("{{\"type\": \"fullblock\", \"data\": {} }}", serde_json::to_string(&StatsDto::from_sbwf(data.read().await.clone())).unwrap());
         let _ = sender
-            .send(Message::text(
-                serde_json::to_string(&StatsDto::from_sbwf(data.read().await.clone())).unwrap(),
-            ))
+            .send(Message::text(t))
             .await;
     }
 
     if msg.eq("config") {
         let t = serde_json::to_string(crate::config::cfg().as_ref()).unwrap();
+        let t = format!("{{\"type\": \"config\", \"data\": {} }}", t);
         let _ = sender.send(Message::text(t)).await;
     }
 
@@ -152,7 +152,7 @@ async fn handle_websocket_message(
                 log::warn!("Failed to load DDCL replay {}", id);
             }
         });
-        let t = format!("[OK] Loaded DDCL Replay {}", id);
+        let t = format!("{{\"type\": \"ddcl_replay_ok\", \"data\": {{ \"replay_id\": {} }} }}", id);
         let _ = sender.send(Message::text(t)).await;
     }
 
@@ -201,7 +201,8 @@ async fn handle_websocket_message(
                 _ => {}
             };
 
-            let _ = sender.send(Message::text("Color Set!")).await;
+            let t = format!("{{\"type\": \"color_set_ok\", \"data\": null }}");
+            let _ = sender.send(Message::text(t)).await;
         }
     }
 
@@ -209,7 +210,8 @@ async fn handle_websocket_message(
         let r = styles.read().await.clone();
         let pretty = PrettyConfig::new();
         let s = to_string_pretty(&r, pretty).expect("Serialization failed");
-        let sent = sender.send(Message::text(s)).await;
+        let t = format!("{{\"type\": \"get_style\", \"data\": {} }}", s);
+        let sent = sender.send(Message::text(t)).await;
         log::info!("Get Style Request: {:?}", sent);
     }
 }

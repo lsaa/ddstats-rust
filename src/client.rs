@@ -239,7 +239,7 @@ impl GamePollClient {
 
     fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame) -> SubmitGameEvent {
         let mut player_id = data.block.player_id;
-        let mut replay_player_id;
+        let replay_player_id;
 
         if data.block.is_replay {
             player_id = data.block.replay_player_id;

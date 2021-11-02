@@ -2,9 +2,10 @@
 // Funny UI
 //
 
-use std::{io::{stdout, Stdout}, sync::{Arc, mpsc::self}, time::{Duration, Instant}};
+use std::{io::{stdout, Stdout}, sync::Arc, time::{Duration, Instant}};
 
 use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
+use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
 use tokio::sync::RwLock;
@@ -30,6 +31,10 @@ use crate::{client::ConnectionState, config::{self, LogoStyle}, consts::*};
 
 thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
+}
+
+lazy_static! {
+    static ref SPLIT_REGEX: Regex = Regex::new(r"SPLIT\s*(\S*):\s*(\d*)\s*\(([\+\-]?\d*)\)").unwrap();
 }
 
 // Modular Game Data
@@ -81,14 +86,14 @@ impl UiThread {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::cfg();
-        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 20.));
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 16.));
         tokio::spawn(async move {
             let mut in_color_mode = false;
             let mut extra_settings = ExtraSettings {
                 homing_always_visible: false,
             };
 
-            let (tx, rx) = mpsc::channel();
+            let (tx, rx) = std::sync::mpsc::channel();
             let _input_handle = {
                 let tx = tx.clone();
                 std::thread::spawn(move || loop {
@@ -837,12 +842,12 @@ impl<'a> Widget for GameDataColorizer {
             split_pos_style = unw.split_diff_pos;
         }
 
-        let re = Regex::new(r"SPLIT\s*(\S*):\s*(\d*)\s*\(([\+\-]?\d*)\)").unwrap();
+        
         let lines = buffer_as_lines(&buf, &area);
         for (y, line) in lines.iter().enumerate() {
             // Color Splits
             if line.contains("SPLIT") {
-                for cap in re.captures_iter(&line) {
+                for cap in SPLIT_REGEX.captures_iter(&line) {
                     let y = y as u16 + area.y;
                     let (name, count, diff) = (
                         cap.get(1).unwrap(),
