@@ -76,7 +76,7 @@ impl MainTask {
         if !config.offline {
             log::info!("ONLINE MODE!");
             GameSubmissionClient::init(sge_recv, log_send.clone(), ssio_send.clone()).await;
-            WebsocketServer::init(last_poll.clone(), color_edit.clone(), current_snowflake.clone(), replay_request_send.clone()).await;
+            WebsocketServer::init(last_poll.clone(), color_edit.clone(), current_snowflake.clone(), replay_request_send.clone(), conn.clone()).await;
             LiveGameClient::init(conn.clone(), last_poll.clone(), ssio_recv).await;
         }
 

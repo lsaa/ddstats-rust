@@ -24,6 +24,8 @@ use warp::{
     Filter,
 };
 
+use crate::client::ConnectionState;
+
 pub struct WebsocketServer;
 
 type ColorStyles = Arc<RwLock<crate::config::Styles>>;
@@ -32,7 +34,7 @@ type Snowflake = Arc<RwLock<u128>>;
 static LAST_SNOWFLAKE: AtomicU64 = AtomicU64::new(0);
 
 impl WebsocketServer {
-    pub async fn init(poll: PollData, styles: ColorStyles, snowflake: Snowflake, replay_request_send: Sender<Vec<u8>>) {
+    pub async fn init(poll: PollData, styles: ColorStyles, snowflake: Snowflake, replay_request_send: Sender<Vec<u8>>, conn: Arc<RwLock<ConnectionState>>) {
         tokio::spawn(async move {
             log::info!("initializing server on port: 13666");
 
@@ -43,9 +45,10 @@ impl WebsocketServer {
                 .and(with_poll_data(poll.clone()))
                 .and(with_color_edit_styles(styles.clone()))
                 .and(with_replay_sender(replay_request_send.clone()))
-                .map(|ws: warp::ws::Ws, poll, styles, replay_send| {
+                .and(with_conn(conn.clone()))
+                .map(|ws: warp::ws::Ws, poll, styles, replay_send, conn| {
                     log::info!("upgrading connection to websocket");
-                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll, styles, replay_send))
+                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll, styles, replay_send, conn))
                 });
 
             let stream = warp::path("miniblock")
@@ -97,7 +100,7 @@ impl WebsocketServer {
     }
 }
 
-async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles: ColorStyles, replay_send: Sender<Vec<u8>>) {
+async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles: ColorStyles, replay_send: Sender<Vec<u8>>, conn: Arc<RwLock<ConnectionState>>) {
     let (mut sender, mut receiver) = websocket.split();
 
     while let Some(body) = receiver.next().await {
@@ -109,7 +112,7 @@ async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles
             }
         };
 
-        handle_websocket_message(message, &mut sender, data.clone(), styles.clone(), replay_send.clone()).await;
+        handle_websocket_message(message, &mut sender, data.clone(), styles.clone(), replay_send.clone(), conn.clone()).await;
     }
 
     log::info!("client disconnected");
@@ -121,6 +124,7 @@ async fn handle_websocket_message(
     data: PollData,
     styles: ColorStyles,
     replay_send: Sender<Vec<u8>>,
+    conn: Arc<RwLock<ConnectionState>>
 ) {
     let msg = if let Ok(s) = message.to_str() {
         s
@@ -130,7 +134,9 @@ async fn handle_websocket_message(
     };
 
     if msg.eq("gimme") {
-        let t = format!("{{\"type\": \"fullblock\", \"data\": {} }}", serde_json::to_string(&StatsDto::from_sbwf(data.read().await.clone())).unwrap());
+        let mut v = StatsDto::from_sbwf(data.read().await.clone());
+        v.additional_info.connection_state = Some(conn.read().await.clone());
+        let t = format!("{{\"type\": \"fullblock\", \"data\": {} }}", serde_json::to_string(&v).unwrap());
         let _ = sender
             .send(Message::text(t))
             .await;
@@ -145,6 +151,10 @@ async fn handle_websocket_message(
     if msg.starts_with("ddcl_replay") {
         let id = i32::from_str_radix(msg.split(" ").nth(1).unwrap(), 10).unwrap();
         let replay_sender_clone = replay_send.clone();
+        let cfg = crate::config::cfg();
+        if conn.read().await.eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
+            log::info!("Opened DD: {:?}", crate::client::start_dd());
+        }
         tokio::spawn(async move {
             if let Ok(replay) = ddcore_rs::ddinfo::get_replay_by_id(id).await {
                 let _ = replay_sender_clone.send(replay).await;
@@ -262,6 +272,10 @@ fn with_poll_data(c: PollData) -> impl Filter<Extract = (PollData,), Error = Inf
     warp::any().map(move || c.clone())
 }
 
+fn with_conn(c: Arc<RwLock<ConnectionState>>) -> impl Filter<Extract = (Arc<RwLock<ConnectionState>>,), Error = Infallible> + Clone {
+    warp::any().map(move || c.clone())
+}
+
 fn with_replay_sender(c: Sender<Vec<u8>>) -> impl Filter<Extract = (Sender<Vec<u8>>,), Error = Infallible> + Clone {
     warp::any().map(move || c.clone())
 }
@@ -309,6 +323,7 @@ pub struct StatsDto {
 #[derive(serde::Serialize)]
 pub struct AdditionalInfo {
     pub frame_count: usize,
+    pub connection_state: Option<ConnectionState>,
 }
 
 impl StatsDto {
@@ -319,6 +334,7 @@ impl StatsDto {
             frames: data.frames,
             additional_info: AdditionalInfo {
                 frame_count: s,
+                connection_state: None
             }
         }
     }

@@ -49,6 +49,8 @@ impl LiveGameClient {
                 let last_data = last_poll.read().await.clone();
                 if conn.eq(&ConnectionState::Connected) {
                     if lgc.sio_status.ne(&SioStatus::LoggedIn) {
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        let last_data = last_poll.read().await.clone();
                         let connection = connect();
                         if connection.is_ok() {
                             current_socket = Some(connection.unwrap());

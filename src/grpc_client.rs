@@ -19,7 +19,7 @@ impl GameSubmissionClient {
                 .expect("No Connection");
             let _res = client
                 .client_start(ClientStartRequest {
-                    version: "0.6.9".to_owned(),
+                    version: "0.6.10".to_owned(),
                 })
                 .await;
             while let Some(sge) = sge_recv.recv().await {

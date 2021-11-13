@@ -2,12 +2,14 @@
 //  client.rs - Game Poll
 //
 
+use anyhow::Result;
 use crate::consts::*;
 use ddcore_rs::ddinfo;
 use ddcore_rs::ddinfo::ddcl_submit::DdclSecrets;
 use ddcore_rs::memory::{ConnectionParams, GameConnection, MemoryOverride, OperatingSystem};
 use ddcore_rs::models::{GameStatus, StatsBlockWithFrames, StatsFrame};
 use num_traits::FromPrimitive;
+use serde::Serialize;
 use tokio::sync::OnceCell;
 use tokio::sync::mpsc::Receiver;
 use std::sync::Arc;
@@ -18,7 +20,7 @@ use tokio::time::{self, timeout};
 
 static MARKER_ADDR: OnceCell<usize> = OnceCell::const_new();
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize)]
 pub enum ConnectionState {
     NotConnected,
     Connecting,
@@ -361,3 +363,17 @@ fn ddcl_secrets() -> Option<DdclSecrets> {
 
 #[derive(Clone)]
 pub struct SubmitGameEvent(pub CompiledRun);
+
+#[cfg(target_os = "windows")]
+pub fn start_dd() -> Result<()> {
+    use std::process::Command;
+    Command::new("start").arg("steam://run/422970").output()?;
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub fn start_dd() -> Result<()> {
+    use std::process::Command;
+    Command::new("steam").arg("steam://run/422970").output()?;
+    Ok(())
+}

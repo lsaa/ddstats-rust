@@ -61,6 +61,7 @@ Breaking Changes:
     use_linux_proton: false,
     process_name_override: None,
     block_marker_override: None,
+    open_game_on_replay_request: true,
     stream: (
         stats: true,
         replay_stats: true,

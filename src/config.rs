@@ -173,6 +173,7 @@ pub struct DDStatsRustConfig {
     pub block_marker_override: Option<usize>,
     #[serde(default)]
     pub process_name_override: Option<String>,
+    pub open_game_on_replay_request: bool,
 }
 
 #[derive(Deserialize, serde::Serialize)]
