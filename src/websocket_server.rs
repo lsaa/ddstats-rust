@@ -25,6 +25,7 @@ use warp::{
 };
 
 use crate::client::ConnectionState;
+use crate::threads::WsBroadcast;
 
 pub struct WebsocketServer;
 
@@ -34,7 +35,14 @@ type Snowflake = Arc<RwLock<u128>>;
 static LAST_SNOWFLAKE: AtomicU64 = AtomicU64::new(0);
 
 impl WebsocketServer {
-    pub async fn init(poll: PollData, styles: ColorStyles, snowflake: Snowflake, replay_request_send: Sender<Vec<u8>>, conn: Arc<RwLock<ConnectionState>>) {
+    pub async fn init(
+        poll: PollData, 
+        styles: ColorStyles, 
+        snowflake: Snowflake, 
+        replay_request_send: Sender<Vec<u8>>, 
+        conn: Arc<RwLock<ConnectionState>>, 
+        ws_broadcast: tokio::sync::broadcast::Sender<WsBroadcast>
+    ) {
         tokio::spawn(async move {
             log::info!("initializing server on port: 13666");
 
@@ -46,9 +54,10 @@ impl WebsocketServer {
                 .and(with_color_edit_styles(styles.clone()))
                 .and(with_replay_sender(replay_request_send.clone()))
                 .and(with_conn(conn.clone()))
-                .map(|ws: warp::ws::Ws, poll, styles, replay_send, conn| {
+                .and(with_ws_broadcast_recv(ws_broadcast))
+                .map(|ws: warp::ws::Ws, poll, styles, replay_send, conn: Arc<RwLock<ConnectionState>>, ws_br| {
                     log::info!("upgrading connection to websocket");
-                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll, styles, replay_send, conn))
+                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll, styles, replay_send, conn, ws_br))
                 });
 
             let stream = warp::path("miniblock")
@@ -100,7 +109,13 @@ impl WebsocketServer {
     }
 }
 
-async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles: ColorStyles, replay_send: Sender<Vec<u8>>, conn: Arc<RwLock<ConnectionState>>) {
+async fn handle_ws_client(
+    websocket: warp::ws::WebSocket, 
+    data: PollData, styles: ColorStyles, 
+    replay_send: Sender<Vec<u8>>, 
+    conn: Arc<RwLock<ConnectionState>>,
+    mut ws_br: tokio::sync::broadcast::Receiver<WsBroadcast>
+) {
     let (mut sender, mut receiver) = websocket.split();
 
     while let Some(body) = receiver.next().await {
@@ -112,7 +127,7 @@ async fn handle_ws_client(websocket: warp::ws::WebSocket, data: PollData, styles
             }
         };
 
-        handle_websocket_message(message, &mut sender, data.clone(), styles.clone(), replay_send.clone(), conn.clone()).await;
+        handle_websocket_message(message, &mut sender, data.clone(), styles.clone(), replay_send.clone(), conn.clone(), &mut ws_br).await;
     }
 
     log::info!("client disconnected");
@@ -124,7 +139,8 @@ async fn handle_websocket_message(
     data: PollData,
     styles: ColorStyles,
     replay_send: Sender<Vec<u8>>,
-    conn: Arc<RwLock<ConnectionState>>
+    conn: Arc<RwLock<ConnectionState>>,
+    ws_br: &mut tokio::sync::broadcast::Receiver<WsBroadcast>
 ) {
     let msg = if let Ok(s) = message.to_str() {
         s
@@ -140,6 +156,11 @@ async fn handle_websocket_message(
         let _ = sender
             .send(Message::text(t))
             .await;
+    }
+
+    if let Ok(msg) = ws_br.try_recv() {
+        let t = serde_json::to_string(&msg).unwrap();
+        let _ = sender.send(Message::text(t)).await;
     }
 
     if msg.eq("config") {
@@ -282,6 +303,10 @@ fn with_replay_sender(c: Sender<Vec<u8>>) -> impl Filter<Extract = (Sender<Vec<u
 
 fn with_snowflake(c: Snowflake) -> impl Filter<Extract = (Snowflake,), Error = Infallible> + Clone {
     warp::any().map(move || c.clone())
+}
+
+fn with_ws_broadcast_recv(c: tokio::sync::broadcast::Sender<WsBroadcast>) -> impl Filter<Extract = (tokio::sync::broadcast::Receiver<WsBroadcast>,), Error = Infallible> + Clone {
+    warp::any().map(move || c.subscribe())
 }
 
 fn with_color_edit_styles(

@@ -9,6 +9,7 @@
 use crate::{client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent}, config::cfg, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::WebsocketServer};
 use std::{sync::Arc, time::{Duration, Instant, UNIX_EPOCH}};
 use ddcore_rs::models::StatsBlockWithFrames;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     RwLock,
@@ -27,6 +28,13 @@ pub struct MainTaskState {
     pub logs: Arc<RwLock<Vec<String>>>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct WsBroadcast {
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub data: String,
+}
+
 impl MainTask {
     #[rustfmt::skip]
     pub async fn init() {
@@ -41,6 +49,7 @@ impl MainTask {
         let (exit_send, exit_recv) = tokio::sync::broadcast::channel(3);
         let (ssio_send, ssio_recv) = channel(3);
         let config = cfg();
+        let (ws_broadcaster_send, _ws_broadcaster_recv) = tokio::sync::broadcast::channel::<WsBroadcast>(16);
 
         let mut main_task = MainTask {
             state: MainTaskState {
@@ -65,9 +74,9 @@ impl MainTask {
         if config.ui_conf.enabled {
             UiThread::init(
                 last_poll.clone(), 
-                logs.clone(), 
+                logs.clone(),
                 conn.clone(), 
-                exit_send.clone(), 
+                exit_send.clone(),
                 color_edit.clone(),
                 replay_request_send.clone()
             ).await;
@@ -75,8 +84,15 @@ impl MainTask {
 
         if !config.offline {
             log::info!("ONLINE MODE!");
-            GameSubmissionClient::init(sge_recv, log_send.clone(), ssio_send.clone()).await;
-            WebsocketServer::init(last_poll.clone(), color_edit.clone(), current_snowflake.clone(), replay_request_send.clone(), conn.clone()).await;
+            GameSubmissionClient::init(sge_recv, log_send.clone(), ssio_send.clone(), ws_broadcaster_send.clone()).await;
+            WebsocketServer::init(
+                last_poll.clone(), 
+                color_edit.clone(), 
+                current_snowflake.clone(), 
+                replay_request_send.clone(), 
+                conn.clone(),
+                ws_broadcaster_send.clone()
+            ).await;
             LiveGameClient::init(conn.clone(), last_poll.clone(), ssio_recv).await;
         }
 

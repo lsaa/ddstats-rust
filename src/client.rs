@@ -173,7 +173,7 @@ impl GamePollClient {
 
             if self.should_submit(&data, &status) {
                 log::info!("Attempting to submit run");
-                let to_submit = GamePollClient::create_submit_event(&data, &last);
+                let to_submit = GamePollClient::create_submit_event(&data, &last, self.state.snowflake.read().await.clone());
                 self.submit_retry_until_success(to_submit).await;
                 let c = data.clone();
                 log::info!("{}", data.block.replay_buffer_length);
@@ -239,7 +239,7 @@ impl GamePollClient {
         }
     }
 
-    fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame) -> SubmitGameEvent {
+    fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame, snowflake: u128) -> SubmitGameEvent {
         let mut player_id = data.block.player_id;
         let replay_player_id;
 
@@ -282,7 +282,7 @@ impl GamePollClient {
             level_gems: last.level_gems,
             homing_daggers: last.homing,
             stats: data.frames.clone(),
-        })
+        }, snowflake.clone())
     }
 
     #[rustfmt::skip]
@@ -362,5 +362,5 @@ fn ddcl_secrets() -> Option<DdclSecrets> {
 }
 
 #[derive(Clone)]
-pub struct SubmitGameEvent(pub CompiledRun);
+pub struct SubmitGameEvent(pub CompiledRun, pub u128);
 
