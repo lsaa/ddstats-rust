@@ -364,16 +364,3 @@ fn ddcl_secrets() -> Option<DdclSecrets> {
 #[derive(Clone)]
 pub struct SubmitGameEvent(pub CompiledRun);
 
-#[cfg(target_os = "windows")]
-pub fn start_dd() -> Result<()> {
-    use std::process::Command;
-    Command::new("start").arg("steam://run/422970").output()?;
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
-pub fn start_dd() -> Result<()> {
-    use std::process::Command;
-    Command::new("steam").arg("steam://run/422970").output()?;
-    Ok(())
-}

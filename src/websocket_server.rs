@@ -153,7 +153,7 @@ async fn handle_websocket_message(
         let replay_sender_clone = replay_send.clone();
         let cfg = crate::config::cfg();
         if conn.read().await.eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
-            log::info!("Opened DD: {:?}", crate::client::start_dd());
+            log::info!("Opened DD: {:?}", ddcore_rs::memory::start_dd());
         }
         tokio::spawn(async move {
             if let Ok(replay) = ddcore_rs::ddinfo::get_replay_by_id(id).await {
