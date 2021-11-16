@@ -154,6 +154,8 @@ impl MainTask {
 
                     if !is_rpc_connected { continue; }
 
+                    log::info!("Set discord RP");
+
                     if game_data.block.status() == GameStatus::Dead {
 
 
