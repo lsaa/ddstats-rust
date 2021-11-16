@@ -123,7 +123,7 @@ impl MainTask {
                         let time = (PLAYER_LB_DATA.get().unwrap().time as f32) / 10000.;
                         log::info!("{}", time);
                         if time >= 1000.0 {
-                            dagger = "leviathan";
+                            dagger = "levi";
                         } else if time >= 500.0 {
                             dagger = "devil";
                         } else if time >= 250.0 {
