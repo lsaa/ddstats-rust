@@ -110,7 +110,7 @@ impl MainTask {
                     let connection = conn_rpc.read().await.clone();
                     let game_data = last_poll.read().await;
 
-                    if !PLAYER_LB_DATA.initialized() && connection == ConnectionState::Connected && tries < 15 {
+                    if !PLAYER_LB_DATA.initialized() && connection == ConnectionState::Connected && tries < 15 && game_data.block.player_id != 0 {
                         tries += 1;
                         if let Ok(player_entry) = ddcore_rs::ddinfo::get_leaderboard_user_by_id(game_data.block.player_id).await {
                             let _ = PLAYER_LB_DATA.set(player_entry);
