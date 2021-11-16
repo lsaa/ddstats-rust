@@ -2,7 +2,6 @@
 //  client.rs - Game Poll
 //
 
-use anyhow::Result;
 use crate::consts::*;
 use ddcore_rs::ddinfo;
 use ddcore_rs::ddinfo::ddcl_submit::DdclSecrets;

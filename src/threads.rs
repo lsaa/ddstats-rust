@@ -6,14 +6,17 @@
 // I HATE WINDOWS
 // I HATE WINDOWS
 
-use crate::{client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent}, config::cfg, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::WebsocketServer};
+use crate::{client::{ClientSharedState, ConnectionState, GamePollClient, SubmitGameEvent}, config::cfg, consts, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::WebsocketServer};
 use std::{sync::Arc, time::{Duration, Instant, UNIX_EPOCH}};
-use ddcore_rs::models::StatsBlockWithFrames;
-use serde::{Deserialize, Serialize};
-use tokio::sync::{
-    mpsc::{channel, Receiver, Sender},
-    RwLock,
-};
+use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
+use discord_rich_presence::{DiscordIpc, activity::{self, Assets}, new_client};
+use lazy_static::lazy_static;
+use serde::Serialize;
+use tokio::sync::{OnceCell, RwLock, mpsc::{channel, Receiver, Sender}};
+
+lazy_static! {
+    static ref PLAYER_LB_DATA: OnceCell<ddcore_rs::ddinfo::models::Entry> = OnceCell::const_new();
+}
 
 pub struct MainTask {
     state: MainTaskState,
@@ -75,7 +78,7 @@ impl MainTask {
             UiThread::init(
                 last_poll.clone(), 
                 logs.clone(),
-                conn.clone(), 
+                conn.clone(),
                 exit_send.clone(),
                 color_edit.clone(),
                 replay_request_send.clone()
@@ -94,6 +97,184 @@ impl MainTask {
                 ws_broadcaster_send.clone()
             ).await;
             LiveGameClient::init(conn.clone(), last_poll.clone(), ssio_recv).await;
+
+            let conn_rpc = conn.clone();
+            tokio::spawn(async move {
+                let mut looper = tokio::time::interval(Duration::from_secs(1));
+                let mut client = new_client("897951249507450880").expect("Can't go tits up");
+                let mut is_rpc_connected = false;
+                let mut tries = 0;
+
+                loop {
+                    looper.tick().await;
+                    let connection = conn_rpc.read().await.clone();
+                    let game_data = last_poll.read().await;
+
+                    if !PLAYER_LB_DATA.initialized() && connection == ConnectionState::Connected && tries < 15 {
+                        tries += 1;
+                        if let Ok(player_entry) = ddcore_rs::ddinfo::get_leaderboard_user_by_id(game_data.block.player_id).await {
+                            let _ = PLAYER_LB_DATA.set(player_entry);
+                        }
+                    }
+
+                    let mut dagger = "pleb";
+
+                    if PLAYER_LB_DATA.initialized() {
+                        let time = (PLAYER_LB_DATA.get().unwrap().time as f32) / 10000.;
+                        log::info!("{}", time);
+                        if time >= 1000.0 {
+                            dagger = "leviathan";
+                        } else if time >= 500.0 {
+                            dagger = "devil";
+                        } else if time >= 250.0 {
+                            dagger = "gold";
+                        } else if time >= 120.0 {
+                            dagger = "silver";
+                        } else if time >= 60.0 {
+                            dagger = "bronze";
+                        }
+                    }
+
+                    if !is_rpc_connected && connection == ConnectionState::Connected {
+                        if client.connect().is_ok() {
+                            is_rpc_connected = true;
+                            continue;
+                        } else {
+                            log::info!("{:?}", client.connect().err());
+                        }
+                    }
+
+                    if is_rpc_connected && connection != ConnectionState::Connected {
+                        if client.close().is_ok() {
+                            is_rpc_connected = false;
+                            continue;
+                        }
+                    }
+
+                    if !is_rpc_connected { continue; }
+
+                    if game_data.block.status() == GameStatus::Dead {
+
+
+                        let death_type = consts::DEATH_TYPES.get(game_data.block.death_type as usize).unwrap();
+                        let last_frame = game_data.frames.last().unwrap();
+                        let last_frame_homers = last_frame.homing;
+                        if last_frame.level_gems == 71 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("{} | {} at {:.4}s", death_type, last_frame_homers, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3")
+                                .small_image("homing_colored")
+                                .small_text(&format!("{} Homing", last_frame_homers)))
+                            );
+                        } else if last_frame.level_gems == 70 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("{} | {} LVL3 at {:.4}s", death_type, last_frame_homers, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3")
+                                .small_image("homing_colored")
+                                .small_text(&format!("{} Homing", last_frame_homers)))
+                            );
+                        } else if last_frame.level_gems >= 10 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("{} | Level 2 at {:.4}s", death_type, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3"))
+                            );
+                        } else {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("{} | Level 1 at {:.4}s", death_type, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3"))
+                            );
+                        }
+                    } else if game_data.block.is_replay {
+                        if game_data.block.level_gems == 71 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("Replay | {} at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3")
+                                .small_image("homing_colored")
+                                .small_text(&format!("{} Homing", game_data.block.homing)))
+                            );
+                        } else if game_data.block.level_gems == 70 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("Replay | {} LVL3 at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3")
+                                .small_image("homing_colored")
+                                .small_text(&format!("{} Homing", game_data.block.homing)))
+                            );
+                        } else if game_data.block.level_gems >= 10 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("Replay | Level 2 at {:.4}s", game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3"))
+                            );
+                        } else {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("Replay | Level 1 at {:.4}s", game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3"))
+                            );
+                        }
+                    } else {
+                        if game_data.block.level_gems == 71 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("{} at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3")
+                                .small_image("homing_colored")
+                                .small_text(&format!("{} Homing", game_data.block.homing)))
+                            );
+                        } else if game_data.block.level_gems == 70 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("{} LVL3 at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3")
+                                .small_image("homing_colored")
+                                .small_text(&format!("{} Homing", game_data.block.homing)))
+                            );
+                        } else if game_data.block.level_gems >= 10 {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("Level 2 at {:.4}s", game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3"))
+                            );
+                        } else {
+                            let _ = client.set_activity(activity::Activity::new()
+                                .state(&format!("Level 1 at {:.4}s", game_data.block.time + game_data.block.starting_time))
+                                .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                                .assets(Assets::new()
+                                .large_image(dagger)
+                                .large_text("Playing V3"))
+                            );
+                        }
+                   }
+                }
+            });
         }
 
         main_task.run(exit_recv).await;

@@ -11,6 +11,7 @@ lto = true
 codegen-units = 1
 
 [dependencies]
+discord-rich-presence = "0.1.8"
 ddcore-rs = { version = "0.1.14", features = ["memory", "ddinfo", "ddcl_submit"] }
 tonic = "0.5.2"
 prost = "0.8"
