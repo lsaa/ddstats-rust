@@ -121,7 +121,6 @@ impl MainTask {
 
                     if PLAYER_LB_DATA.initialized() {
                         let time = (PLAYER_LB_DATA.get().unwrap().time as f32) / 10000.;
-                        log::info!("{}", time);
                         if time >= 1000.0 {
                             dagger = "levi";
                         } else if time >= 500.0 {
@@ -138,6 +137,7 @@ impl MainTask {
                     if !is_rpc_connected && connection == ConnectionState::Connected {
                         if client.connect().is_ok() {
                             is_rpc_connected = true;
+                            log::info!("Connected discord rich presence");
                             continue;
                         } else {
                             log::info!("{:?}", client.connect().err());
@@ -147,6 +147,7 @@ impl MainTask {
                     if is_rpc_connected && connection != ConnectionState::Connected {
                         if client.close().is_ok() {
                             is_rpc_connected = false;
+                            log::info!("Disconnected discord rich presence");
                             continue;
                         }
                     }
