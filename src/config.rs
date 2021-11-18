@@ -7,6 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use lazy_static::lazy_static;
 use ron::de::from_reader;
 use ron::de::from_str;
 use serde::Deserialize;
@@ -212,8 +213,8 @@ impl std::default::Default for Ddcl {
     }
 }
 
-thread_local! {
-    pub static CONFIG: Arc<DDStatsRustConfig> = Arc::new(get_config());
+lazy_static! {
+    pub static ref CONFIG: Arc<DDStatsRustConfig> = Arc::new(get_config());
 }
 
 #[cfg(target_os = "linux")]
@@ -223,13 +224,14 @@ fn get_priority_file() -> PathBuf {
     if config_path.exists() {
         config_path
     } else {
-        let home;
+        let mut home;
         if let Ok(xdg_home) = std::env::var("XDG_CONFIG_HOME") {
             home = xdg_home;
         } else {
             home = std::env::var("HOME").unwrap();
+            home.push_str("/.config");
         }
-        Path::new(format!("{}/.config/ddstats-rust/config.ron", home).as_str()).to_owned()
+        Path::new(format!("{}/ddstats-rust/config.ron", home).as_str()).to_owned()
     }
 }
 
@@ -254,9 +256,32 @@ fn get_config() -> DDStatsRustConfig {
         }
     }
 
+    if let Some(default_cfg) = default_cfg_locate() {
+        if default_cfg.exists() {
+            let mut f = File::open(&default_cfg).expect("Can't read default config");
+            if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
+                let cpath = Path::new(&format!("{}/ddstats-rust/config.ron", config_home.as_str()));
+                if std::fs::create_dir_all(cpath).is_ok() {
+                    let mut f_new = File::create(cpath).expect("Coudln't create config");
+                    std::io::copy(&mut f, &mut f_new).expect("Couldn't write to config file");
+                }
+            }
+        }
+    }
+
     from_str(DEFAULT_CFG).expect("FUN")
 }
 
+#[cfg(target_os = "windows")]
+fn default_cfg_locate() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn default_cfg_locate() -> Option<PathBuf> {
+    Some(PathBuf::from("/usr/share/doc/ddstats-rust/default_cfg.ron"))
+}
+
 pub fn cfg<'a>() -> Arc<DDStatsRustConfig> {
-    CONFIG.with(|z| z.clone())
+    CONFIG.clone()
 }

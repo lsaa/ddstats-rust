@@ -92,7 +92,7 @@ impl GamePollClient {
             }
         };
 
-        if let Ok(new_connection) = GameConnection::try_create(ConnectionParams {
+        let conn_res = GameConnection::try_create(ConnectionParams {
             create_child: cfg.linux_restart_as_child,
             operating_system: os,
             overrides: MemoryOverride {
@@ -113,11 +113,16 @@ impl GamePollClient {
                     }
                 }}).await.clone()),
             },
-        }) {
+        });
+
+        if let Ok(new_connection) = conn_res {
             self.connection_state = ConnectionState::Connecting;
             self.connection = new_connection;
             self.connecting_start = Instant::now();
             *self.state.connection_sender.write().await = self.connection_state.clone();
+        } else {
+            log::info!("{:?}", conn_res.err());
+            std::thread::sleep(Duration::from_secs(0));
         }
     }
 

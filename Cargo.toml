@@ -2,7 +2,7 @@ cargo-features = ["strip"]
 
 [package]
 name = "ddstats-rust"
-version = "0.6.9"
+version = "0.6.10"
 edition = "2021"
 
 [profile.release]
@@ -12,7 +12,7 @@ codegen-units = 1
 
 [dependencies]
 discord-rich-presence = "0.1.8"
-ddcore-rs = { version = "0.1.14", features = ["memory", "ddinfo", "ddcl_submit"] }
+ddcore-rs = { version = "0.1.14", features = ["memory", "ddinfo", "ddcl_submit", "logger"], path = "../ddcore-rs" }
 tonic = "0.5.2"
 prost = "0.8"
 tui = { version = "0.16.0", default-features = false, features = ["crossterm", "serde"]}

@@ -154,11 +154,7 @@ impl MainTask {
 
                     if !is_rpc_connected { continue; }
 
-                    log::info!("Set discord RP");
-
                     if game_data.block.status() == GameStatus::Dead {
-
-
                         let death_type = consts::DEATH_TYPES.get(game_data.block.death_type as usize).unwrap();
                         let last_frame = game_data.frames.last().unwrap();
                         let last_frame_homers = last_frame.homing;
