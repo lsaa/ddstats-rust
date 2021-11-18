@@ -412,6 +412,8 @@ dependencies = [
 [[package]]
 name = "ddcore-rs"
 version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "789d06caebacdf2bba839299ad30dbd774129b60166ca1f17fcbce160d46c6d9"
 dependencies = [
  "aes",
  "anyhow",
@@ -423,7 +425,6 @@ dependencies = [
  "hyper 0.14.12",
  "hyper-tls",
  "libflate",
- "log 0.4.14",
  "native-tls",
  "num-derive",
  "num-traits",
