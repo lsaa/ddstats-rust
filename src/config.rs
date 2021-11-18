@@ -266,6 +266,8 @@ fn get_config() -> DDStatsRustConfig {
                     std::io::copy(&mut f, &mut f_new).expect("Couldn't write to config file");
                 }
             }
+
+            return from_reader(f).expect("couldn't read default config");
         }
     }
 
