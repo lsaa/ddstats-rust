@@ -260,7 +260,8 @@ fn get_config() -> DDStatsRustConfig {
         if default_cfg.exists() {
             let mut f = File::open(&default_cfg).expect("Can't read default config");
             if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
-                let cpath = Path::new(&format!("{}/ddstats-rust/config.ron", config_home.as_str()));
+                let c = format!("{}/ddstats-rust/config.ron", config_home.as_str());
+                let cpath = Path::new(c.as_str());
                 if std::fs::create_dir_all(cpath).is_ok() {
                     let mut f_new = File::create(cpath).expect("Coudln't create config");
                     std::io::copy(&mut f, &mut f_new).expect("Couldn't write to config file");

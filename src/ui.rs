@@ -332,7 +332,7 @@ pub fn draw_logo<B>(f: &mut Frame<B>, area: Rect)
 where
     B: Backend,
 {
-    let cfg = config::CONFIG.with(|c| c.clone());
+    let cfg = &config::CONFIG;
 
     let max_w = LOGO_NEW.lines().fold(
         LOGO_NEW.lines().next().unwrap().chars().count(),
@@ -366,7 +366,7 @@ pub fn draw_logo_color_editor<B>(f: &mut Frame<B>, area: Rect, styles: &crate::c
 where
     B: Backend,
 {
-    let cfg = config::CONFIG.with(|c| c.clone());
+    let cfg = &config::CONFIG;
 
     let max_w = LOGO_NEW.lines().fold(
         LOGO_NEW.lines().next().unwrap().chars().count(),
@@ -469,7 +469,7 @@ pub fn draw_logs<B>(f: &mut Frame<B>, area: Rect, logs: &Vec<String>)
 where
     B: Backend,
 {
-    let cfg = config::CONFIG.with(|z| z.clone());
+    let cfg = &config::CONFIG;
     let log_size = if logs.len() > ((area.height - 2) as usize) {
         logs.len() + 2 - area.height as usize
     } else {
@@ -827,7 +827,7 @@ fn buffer_as_lines(buf: &Buffer, area: &Rect) -> Vec<String> {
 
 impl<'a> Widget for GameDataColorizer {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let cfg = config::CONFIG.with(|x| x.clone());
+        let cfg = &config::CONFIG;
 
         let mut split_name_style = cfg.ui_conf.style.split_name;
         let mut split_pos_style = cfg.ui_conf.style.split_diff_pos;
