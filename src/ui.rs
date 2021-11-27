@@ -133,7 +133,7 @@ impl UiThread {
                                 extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
                             },
                             KeyCode::F(8) => {
-                                let replay = ddcore_rs::ddinfo::get_replay_by_id(1747).await.unwrap();
+                                let replay = crate::websocket_server::get_replay_link("https://cdn.discordapp.com/attachments/287337352714518528/914003436771622932/retard_235.28-KyoZM-0adc9b9e.ddreplay").await.unwrap();
                                 replay_request_send.send(replay).await.expect("UH OH!");
                             }
                             _ => {}

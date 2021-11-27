@@ -6,7 +6,6 @@ use anyhow::{Result, bail};
 use ddcore_rs::models::{StatsBlockWithFrames, StatsDataBlock, StatsFrame};
 use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
-use hyper::client::HttpConnector;
 use hyper::{Body, Client, Method, Request};
 use hyper_tls::HttpsConnector;
 use regex::{Match, Regex};
@@ -192,22 +191,22 @@ async fn handle_websocket_message(
     }
 
     if msg.starts_with("replay_link") {
-        let link = format!("{}", msg.clone().split(" ").nth(1).unwrap());
-        let lc = link.clone();
+        let link = msg.clone().split(" ").nth(1).unwrap().to_string();
         let replay_sender_clone = replay_send.clone();
         let cfg = crate::config::cfg();
         if conn.read().await.eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
             log::info!("Opened DD: {:?}", ddcore_rs::memory::start_dd());
         }
         tokio::spawn(async move {
-            if let Ok(replay) = get_replay_link(&link).await {
+            if let Ok(replay) = get_replay_link(link.as_str()).await {
                 let _ = replay_sender_clone.send(replay).await;
             } else {
                 log::warn!("Failed to load replay {}", link);
             }
         });
-        let t = format!("{{\"type\": \"replay_link_ok\", \"data\": {{ \"replay_link\": {} }} }}", lc);
+        let t = format!("{{\"type\": \"replay_link_ok\", \"data\": {{ \"replay_link\": {} }} }}", link);
         let _ = sender.send(Message::text(t)).await;
+
     }
 
     if msg.starts_with("clr-set") {
@@ -449,14 +448,8 @@ fn sse_miniblock(miniblock: MiniBlock, data: &StatsBlockWithFrames) -> Result<Ev
 }
 
 pub async fn get_replay_link(link: &str) -> Result<Vec<u8>> {
-    let mut tls_connector_builder = native_tls::TlsConnector::builder();
-    tls_connector_builder.danger_accept_invalid_hostnames(true);
-    tls_connector_builder.danger_accept_invalid_certs(true);
-    let tls_connector = tls_connector_builder.build().unwrap();
-    let mut http = HttpConnector::new();
-    http.enforce_http(false);
-    let https = hyper_tls::HttpsConnector::from((http, tls_connector.into()));
-    let client = hyper::Client::builder().build(https);
+    let https = HttpsConnector::new();
+    let client = Client::builder().build::<_, hyper::Body>(https);
     let uri = format!("{}", link);
     let req = Request::builder()
         .method(Method::GET)
