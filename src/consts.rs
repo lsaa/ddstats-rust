@@ -66,7 +66,7 @@ pub const DEATH_TYPES: [&str; 17] = [
     "Eviscerated",  // centipide
     "Annihilated",  // gigapede
     "Intoxicated",  // 3.0 ghost || spider 1
-    "Envenmonated", // spider 2
+    "Envenomated",  // spider 2
     "Incarnated",   // levi
     "Discarnated",  // orb
     "Entangled",    // Replaced BARBED || thorn

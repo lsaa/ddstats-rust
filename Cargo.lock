@@ -411,9 +411,9 @@ dependencies = [
 
 [[package]]
 name = "ddcore-rs"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7769c0a6f28b9c5a7303a37062e2513ae87772571b187ab566e460897f63b20f"
+checksum = "7afe57143255fc651f21104e6ba39f0dc6271c0bf97c96c871ad3db5dd4107ca"
 dependencies = [
  "aes",
  "anyhow",
