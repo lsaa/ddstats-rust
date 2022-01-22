@@ -1,5 +1,3 @@
-cargo-features = ["strip"]
-
 [package]
 name = "ddstats-rust"
 version = "0.6.10"
@@ -12,7 +10,7 @@ codegen-units = 1
 
 [dependencies]
 discord-rich-presence = "0.1.8"
-ddcore-rs = { version = "0.1.15", features = ["memory", "ddinfo", "ddcl_submit", "logger"] }
+ddcore-rs = { git = "https://github.com/lsaa/ddcore-rs", version = "0.1.20", branch = "master", features = ["memory", "ddinfo", "ddcl_submit", "logger", "ddreplay"] }
 tonic = "0.5.2"
 prost = "0.8"
 tui = { version = "0.16.0", default-features = false, features = ["crossterm", "serde"]}
@@ -37,6 +35,7 @@ clipboard = "0.5.0"
 native-tls = "0.2.8"
 websocket = "0.26.2"
 anyhow = "1.0.43"
+arc-swap = "1.5.0"
 
 [build-dependencies]
 tonic-build = { version = "0.5.2", features = ["prost"] }

@@ -8,7 +8,6 @@ use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
 use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
-use tokio::sync::RwLock;
 use tui::{
     backend::{Backend, CrosstermBackend},
     buffer::Buffer,
@@ -27,7 +26,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, LeaveAlternateScreen},
 };
 
-use crate::{client::ConnectionState, config::{self, LogoStyle}, consts::*};
+use crate::{client::ConnectionState, config::{self, LogoStyle}, consts::*, threads::{AAS, State, Message}};
 
 thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
@@ -75,18 +74,12 @@ pub struct ExtraSettings {
 }
 
 impl UiThread {
-    pub async fn init(
-        latest_data: Arc<RwLock<StatsBlockWithFrames>>,
-        logs: Arc<RwLock<Vec<String>>>,
-        connected: Arc<RwLock<ConnectionState>>,
-        exit_broadcast: tokio::sync::broadcast::Sender<bool>,
-        color_edit_styles: Arc<RwLock<crate::config::Styles>>,
-        replay_request_send: tokio::sync::mpsc::Sender<Vec<u8>>
-    ) {
+    pub async fn init(state: AAS<State>) {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
         let cfg = config::cfg();
-        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 16.));
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 14.));
+        let mut log_list = vec![];
         tokio::spawn(async move {
             let mut in_color_mode = false;
             let mut extra_settings = ExtraSettings {
@@ -105,127 +98,141 @@ impl UiThread {
                 })
             };
 
+            let mut msg_bus = state.load().msg_bus.0.subscribe();
+
             loop {
-                interval.tick().await;
-                let ev_res = rx.try_recv();
-                if ev_res.is_ok() {
-                    let ev = ev_res.unwrap();
-                    match ev {
-                        Event::Input(event) => match event.code {
-                            KeyCode::Char('q') => {
-                                disable_raw_mode().expect("I can't");
-                                execute!(
-                                    term.backend_mut(),
-                                    LeaveAlternateScreen,
-                                    DisableMouseCapture
-                                )
-                                .expect("FUN");
-                                term.show_cursor().expect("NOO");
-                                exit_broadcast
-                                    .send(true)
-                                    .expect("Coudln't send exit broadcast");
-                                break;
-                            }
-                            KeyCode::F(3) => {
-                                in_color_mode = !in_color_mode;
-                            },
-                            KeyCode::F(5) => {
-                                extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
-                            },
-                            KeyCode::F(8) => {
-                                let replay = crate::websocket_server::get_replay_link("https://cdn.discordapp.com/attachments/287337352714518528/914003436771622932/retard_235.28-KyoZM-0adc9b9e.ddreplay").await.unwrap();
-                                replay_request_send.send(replay).await.expect("UH OH!");
-                            }
-                            _ => {}
+                let state = state.load();
+
+                tokio::select! {
+                    msg = msg_bus.recv() => match msg {
+                        Ok(Message::Log(data)) => {
+                            log_list.push(data);
                         },
-                    }
-                }
-
-                let read_data = latest_data.read().await.clone();
-                let log_list = logs.read().await.clone();
-                let connection_status = connected.read().await.clone();
-
-                if in_color_mode {
-                    let s = color_edit_styles.read().await.clone();
-                    draw_color_editor_mode(&mut term, &s);
-                    continue;
-                }
-
-                term.draw(|f| {
-                    let mut layout = Layout::default()
-                        .direction(Direction::Vertical)
-                        .constraints([Constraint::Percentage(100)])
-                        .split(f.size());
-
-                    if connection_status != ConnectionState::Connected
-                        && cfg.ui_conf.orb_connection_animation
-                    {
-                        draw_levi(f, layout[0]);
-                        return;
-                    }
-
-                    if cfg.ui_conf.logo_style != LogoStyle::Off {
-                        let max_w = LOGO_NEW.lines().fold(
-                            LOGO_NEW.lines().next().unwrap().chars().count(),
-                            |acc, x| {
-                                if x.chars().count() > acc {
-                                    x.chars().count()
-                                } else {
-                                    acc
-                                }
-                            },
-                        );
-
-                        let height = match cfg.ui_conf.logo_style {
-                            LogoStyle::Auto => {
-                                if layout[0].width as usize >= max_w {
-                                    LOGO_NEW.lines().count()
-                                } else {
-                                    LOGO_MINI.lines().count()
-                                }
+                        _ => {},
+                    },
+                    _elapsed = interval.tick() => {
+                        let ev_res = rx.try_recv();
+                        if ev_res.is_ok() {
+                            let ev = ev_res.unwrap();
+                            match ev {
+                                Event::Input(event) => match event.code {
+                                    KeyCode::Char('q') => {
+                                        disable_raw_mode().expect("I can't");
+                                        execute!(
+                                            term.backend_mut(),
+                                            LeaveAlternateScreen,
+                                            DisableMouseCapture
+                                        )
+                                        .expect("FUN");
+                                        term.show_cursor().expect("NOO");
+                                        let _ = state.msg_bus.0.send(Message::Exit);
+                                        break;
+                                    }
+                                    KeyCode::F(3) => {
+                                        in_color_mode = !in_color_mode;
+                                    },
+                                    KeyCode::F(5) => {
+                                        extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
+                                    },
+                                    KeyCode::F(7) => {
+                                        let _ = state.msg_bus.0.send(Message::Log("Uploading Replay...".to_string()));
+                                        let _ = state.msg_bus.0.send(Message::UploadReplayBuffer);
+                                    },
+                                    KeyCode::F(8) => {
+                                        let replay = crate::websocket_server::get_replay_link("https://cdn.discordapp.com/attachments/287337352714518528/914003436771622932/retard_235.28-KyoZM-0adc9b9e.ddreplay").await.unwrap();
+                                        let _ = state.msg_bus.0.send(Message::Replay(Arc::new(replay)));
+                                    }
+                                    _ => {}
+                                },
                             }
-                            LogoStyle::Mini => LOGO_MINI.lines().count(),
-                            LogoStyle::Full => LOGO_NEW.lines().count(),
-                            LogoStyle::Off => 0,
-                        };
-
-                        layout = Layout::default()
-                            .direction(Direction::Vertical)
-                            .constraints([
-                                Constraint::Min(height as u16 + 1),
-                                Constraint::Percentage(100),
-                            ])
-                            .split(f.size());
-
-                        crate::ui::draw_logo(f, layout[0]);
+                        }
+        
+                        let ref read_data = state.last_poll;
+                        let ref connection_status = state.conn;
+        
+                        if in_color_mode {
+                            let s = (*state.color_edit).clone();
+                            draw_color_editor_mode(&mut term, &s);
+                            continue;
+                        }
+        
+                        term.draw(|f| {
+                            let mut layout = Layout::default()
+                                .direction(Direction::Vertical)
+                                .constraints([Constraint::Percentage(100)])
+                                .split(f.size());
+        
+                            if **connection_status != ConnectionState::Connected
+                                && cfg.ui_conf.orb_connection_animation
+                            {
+                                draw_levi(f, layout[0]);
+                                return;
+                            }
+        
+                            if cfg.ui_conf.logo_style != LogoStyle::Off {
+                                let max_w = LOGO_NEW.lines().fold(
+                                    LOGO_NEW.lines().next().unwrap().chars().count(),
+                                    |acc, x| {
+                                        if x.chars().count() > acc {
+                                            x.chars().count()
+                                        } else {
+                                            acc
+                                        }
+                                    },
+                                );
+        
+                                let height = match cfg.ui_conf.logo_style {
+                                    LogoStyle::Auto => {
+                                        if layout[0].width as usize >= max_w {
+                                            LOGO_NEW.lines().count()
+                                        } else {
+                                            LOGO_MINI.lines().count()
+                                        }
+                                    }
+                                    LogoStyle::Mini => LOGO_MINI.lines().count(),
+                                    LogoStyle::Full => LOGO_NEW.lines().count(),
+                                    LogoStyle::Off => 0,
+                                };
+        
+                                layout = Layout::default()
+                                    .direction(Direction::Vertical)
+                                    .constraints([
+                                        Constraint::Min(height as u16 + 1),
+                                        Constraint::Percentage(100),
+                                    ])
+                                    .split(f.size());
+        
+                                crate::ui::draw_logo(f, layout[0]);
+                            }
+        
+                            let mut info = Layout::default()
+                                .direction(Direction::Horizontal)
+                                .constraints([Constraint::Percentage(100)])
+                                .horizontal_margin(0)
+                                .vertical_margin(0)
+                                .split(layout[layout.len() - 1]);
+        
+                            if !cfg.ui_conf.hide_logs {
+                                info = Layout::default()
+                                    .direction(Direction::Horizontal)
+                                    .constraints([Constraint::Min(20), Constraint::Percentage(100)])
+                                    .horizontal_margin(0)
+                                    .vertical_margin(0)
+                                    .split(layout[layout.len() - 1]);
+        
+                                crate::ui::draw_logs(f, info[0], &log_list);
+                            }
+        
+                            crate::ui::draw_info_table(
+                                f,
+                                info[info.len() - 1],
+                                &read_data,
+                                &extra_settings,
+                            );
+                        })
+                        .unwrap();
                     }
-
-                    let mut info = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Percentage(100)])
-                        .horizontal_margin(0)
-                        .vertical_margin(0)
-                        .split(layout[layout.len() - 1]);
-
-                    if !cfg.ui_conf.hide_logs {
-                        info = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints([Constraint::Min(20), Constraint::Percentage(100)])
-                            .horizontal_margin(0)
-                            .vertical_margin(0)
-                            .split(layout[layout.len() - 1]);
-
-                        crate::ui::draw_logs(f, info[0], &log_list);
-                    }
-
-                    crate::ui::draw_info_table(
-                        f,
-                        info[info.len() - 1],
-                        &read_data,
-                        &extra_settings,
-                    );
-                })
-                .unwrap();
+                }
             }
         });
     }
@@ -774,7 +781,7 @@ fn create_daggers_eaten_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
 }
 
 fn ddcl_warning_rows(_data: &StatsBlockWithFrames) -> Vec<Row> {
-    let normal_style = Style::default().fg(Color::White);
+    let _normal_style = Style::default().fg(Color::White);
     return vec![];
     /*vec![Row::new([
         String::from("DDCL WARN"),

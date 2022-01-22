@@ -7,6 +7,7 @@ pub mod threads;
 pub mod ui;
 pub mod websocket_server;
 pub mod socketio_client;
+pub mod discord;
 
 #[tokio::main]
 async fn main() {
@@ -19,5 +20,5 @@ async fn main() {
         log_panics::init();
     }
 
-    threads::MainTask::init().await;
+    threads::init().await;
 }

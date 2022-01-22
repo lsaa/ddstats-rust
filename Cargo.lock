@@ -36,6 +36,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28ae2b3dec75a406790005a200b1bd89785afc02517a00ca99ecfe093ee9e6cf"
 
 [[package]]
+name = "arc-swap"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5d78ce20460b82d3fa150275ed9d55e21064fc7951177baacf86a145c4a4b1f"
+
+[[package]]
 name = "async-stream"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -411,9 +417,8 @@ dependencies = [
 
 [[package]]
 name = "ddcore-rs"
-version = "0.1.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7769c0a6f28b9c5a7303a37062e2513ae87772571b187ab566e460897f63b20f"
+version = "0.1.20"
+source = "git+https://github.com/lsaa/ddcore-rs?branch=master#751b423deb330d142263e610355894bf25f1270d"
 dependencies = [
  "aes",
  "anyhow",
@@ -426,6 +431,7 @@ dependencies = [
  "hyper-tls",
  "libflate",
  "log 0.4.14",
+ "md5",
  "native-tls",
  "num-derive",
  "num-traits",
@@ -444,6 +450,7 @@ name = "ddstats-rust"
 version = "0.6.10"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "clipboard",
  "crossterm",
  "ddcore-rs",
@@ -1096,6 +1103,12 @@ name = "maybe-uninit"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
+
+[[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
