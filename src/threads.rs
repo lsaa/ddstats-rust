@@ -2,8 +2,8 @@
 //  threads.rs - Management of threads 
 //  Rewrite Counter: 3 x (I HATE WINDOWS)
 
-use crate::{client::{ConnectionState, GamePollClient, SubmitGameEvent}, config::cfg, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::{WebsocketServer, WsBroadcast}, discord::RichPresenceClient};
-use std::{sync::Arc, time::UNIX_EPOCH};
+use crate::{client::{ConnectionState, GamePollClient, SubmitGameEvent}, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::{WebsocketServer, WsBroadcast}, discord::RichPresenceClient};
+use std::{sync::Arc, time::UNIX_EPOCH, net::TcpListener};
 use arc_swap::ArcSwap;
 use ddcore_rs::models::StatsBlockWithFrames;
 use crate::socketio_client::SubmitSioEvent;
@@ -21,7 +21,10 @@ pub enum Message {
     WebSocketMessage(WsBroadcast),
     SocketIoMessage(SubmitSioEvent),
     UploadReplayBuffer,
+    UploadReplayData(Arc<Vec<u8>>),
     Replay(Arc<Vec<u8>>),
+    ShowWindow,
+    HideWindow,
     Exit,
 }
 
@@ -36,8 +39,8 @@ pub struct State {
 
 #[rustfmt::skip]
 pub async fn init() {
-    let config = cfg();
-    let msg_bus = Arc::new(tokio::sync::broadcast::channel(32));
+    let msg_bus = Arc::new(tokio::sync::broadcast::channel(512));
+    let cfg = crate::config::cfg();
 
     let state = Arc::new(ArcSwap::from_pointee(State {
         conn: Arc::default(),
@@ -48,12 +51,15 @@ pub async fn init() {
     }));
 
     GamePollClient::init(state.clone()).await;
+    UiThread::init(state.clone()).await;
+    #[cfg(target_os = "windows")] crate::tray::TrayIcon::init(state.clone()).await;
+    #[cfg(target_os = "windows")] let _ = winconsole::console::set_title("ddstats-rust");
 
-    if config.ui_conf.enabled {
-        UiThread::init(state.clone()).await;
-    }
-
-    if !config.offline {
+    if !cfg.offline {
+        if !port_is_available(13666) {
+            log::error!("websocket port already bound, ddstats-rust is probably already open.");
+            return;
+        }
         log::info!("ONLINE MODE!");
         GameSubmissionClient::init(state.clone()).await;
         WebsocketServer::init(state.clone()).await;
@@ -85,9 +91,16 @@ pub async fn init() {
                     old.conn = data;
                     state.swap(Arc::new(old));
                 },
-                Ok(Message::Exit) => { break; },
+                Ok(Message::Exit) => { log::info!("EXIT"); break; },
                 _ => {}
             },
         };
+    }
+}
+
+fn port_is_available(port: u16) -> bool {
+    match TcpListener::bind(("127.0.0.1", port)) {
+        Ok(_) => true,
+        Err(_) => false,
     }
 }

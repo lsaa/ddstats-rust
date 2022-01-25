@@ -68,6 +68,21 @@ impl GamePollClient {
                         Ok(Message::UploadReplayBuffer) => {
                             c.upload_replay_flag = true;
                         },
+                        Ok(Message::UploadReplayData(data)) => {
+                            let snd_msg = c.state.load().msg_bus.0.clone();
+                            let _ = snd_msg.send(Message::Log("Uploading Replay...".to_string()));
+                            tokio::spawn(async move {
+                                match ddcore_rs::ddreplay::upload_replay(data).await {
+                                    Ok(_) => {
+                                        let _ = snd_msg.send(Message::Log("Replay Uploaded".to_string()));
+                                    },
+                                    Err(e) => {
+                                        let _ = snd_msg.send(Message::Log("Replay Exists".to_string()));
+                                        log::info!("Failed replay upload: {:?}", e);
+                                    }
+                                }
+                            });
+                        },
                         _ => {},
                     },
                     _elapsed = interval.tick() => {
@@ -88,7 +103,7 @@ impl GamePollClient {
     }
 
     async fn not_connected(&mut self) {
-        if Instant::now().duration_since(self.last_connection_attempt) < Duration::from_secs(2) {
+        if Instant::now().duration_since(self.last_connection_attempt) < Duration::from_secs(5) {
             return;
         }
 
@@ -139,7 +154,14 @@ impl GamePollClient {
             self.connecting_start = Instant::now();
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connecting)));
         } else {
-            log::info!("{:?}", conn_res.err());
+            match conn_res.as_ref().err() {
+                Some(m) => {
+                    if !m.contains("Process not found") {
+                        log::info!("{:?}", conn_res.err());
+                    }
+                },
+                _ => { log::info!("{:?}", conn_res.err()); },
+            }
         }
     }
 
@@ -201,7 +223,7 @@ impl GamePollClient {
                                 let _ = msg_bus.send(Message::Log("Replay Uploaded".to_string()));
                             },
                             Err(e) => {
-                                let _ = msg_bus.send(Message::Log("Replay Rejected".to_string()));
+                                let _ = msg_bus.send(Message::Log("Replay Exists".to_string()));
                                 log::info!("Failed replay upload: {:?}", e);
                             }
                         }
@@ -214,16 +236,17 @@ impl GamePollClient {
 
             if self.should_submit(&data, &status) {
                 log::info!("Attempting to submit run");
-                let to_submit = GamePollClient::create_submit_event(&data, &data.frames.last().unwrap(), *state.snowflake);
-                let _ = state.msg_bus.0.send(Message::SubmitGame(Arc::new(to_submit)));
                 if let Ok(replay) = self.connection.replay_bin() {
+                    let repl = Arc::new(replay);
+                    let to_submit = GamePollClient::create_submit_event(&data, &data.frames.last().unwrap(), *state.snowflake, &repl);
+                    let _ = state.msg_bus.0.send(Message::SubmitGame(Arc::new(to_submit)));
+                    self.submitted_data = true;
                     if data.block.status == 3 || data.block.status == 4 || data.block.status == 5 {
                         tokio::spawn(async move {
-                            let _res = ddinfo::ddcl_submit::submit(data_clone, ddcl_secrets(), "ddstats-rust", "0.6.9.1", Arc::new(replay)).await;
+                            let _res = ddinfo::ddcl_submit::submit(data_clone, ddcl_secrets(), "ddstats-rust", "0.6.10.1", repl).await;
                         });
                     }
                 }
-                self.submitted_data = true;
             }
 
             self.last_game_state = status;
@@ -266,7 +289,7 @@ impl GamePollClient {
     }
 
 
-    fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame, snowflake: u128) -> SubmitGameEvent {
+    fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame, snowflake: u128, replay: &Arc<Vec<u8>>) -> SubmitGameEvent {
         let mut player_id = data.block.player_id;
         let replay_player_id;
 
@@ -309,7 +332,7 @@ impl GamePollClient {
             level_gems: last.level_gems,
             homing_daggers: last.homing,
             stats: data.frames.clone(),
-        }, snowflake.clone())
+        }, snowflake.clone(), replay.clone())
     }
 
     #[rustfmt::skip]
@@ -320,7 +343,8 @@ impl GamePollClient {
         && !self.submitted_data
         && (status == GameStatus::Dead
         || status == GameStatus::OtherReplay
-        || status == GameStatus::OwnReplayFromLeaderboard)
+        || status == GameStatus::OwnReplayFromLeaderboard
+        || status == GameStatus::LocalReplay)
     }
 
     #[rustfmt::skip]
@@ -331,12 +355,13 @@ impl GamePollClient {
         status == GameStatus::Playing
         || (old != GameStatus::OtherReplay && status == GameStatus::OtherReplay)
         || (old != GameStatus::OwnReplayFromLeaderboard && status == GameStatus::OwnReplayFromLeaderboard)
+        || (old != GameStatus::LocalReplay && status == GameStatus::LocalReplay)
     }
 
     async fn resolve_connection(&mut self) -> bool {
         if let Err(e) = self.connection.is_alive_res() {
             log::warn!("Disconnected: {:?}", e);
-            log::info!("{:?}", self.connection.last_fetch);
+            log::info!("Connection Base Addr: {:?} | PID: {}", self.connection.base_address, self.connection.pid);
             self.connection_state = ConnectionState::NotConnected;
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::NotConnected)));
             let _ = self.state.load().msg_bus.0.send(Message::Log("Disconnected".to_string()));
@@ -390,5 +415,5 @@ fn ddcl_secrets() -> Option<DdclSecrets> {
 }
 
 #[derive(Clone)]
-pub struct SubmitGameEvent(pub CompiledRun, pub u128);
+pub struct SubmitGameEvent(pub CompiledRun, pub u128, pub Arc<Vec<u8>>);
 

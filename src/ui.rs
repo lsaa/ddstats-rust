@@ -29,7 +29,7 @@ use crossterm::{
 use crate::{client::ConnectionState, config::{self, LogoStyle}, consts::*, threads::{AAS, State, Message}};
 
 thread_local! {
-    static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
+    static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now(), ms_count: 0 })
 }
 
 lazy_static! {
@@ -71,26 +71,27 @@ pub struct UiThread;
 #[derive(Clone, Debug)]
 pub struct ExtraSettings {
     homing_always_visible: bool,
+    draw_ui: bool,
 }
 
 impl UiThread {
     pub async fn init(state: AAS<State>) {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
-        let cfg = config::cfg();
         let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 14.));
         let mut log_list = vec![];
         tokio::spawn(async move {
             let mut in_color_mode = false;
             let mut extra_settings = ExtraSettings {
                 homing_always_visible: false,
+                draw_ui: crate::config::cfg().ui_conf.enabled
             };
 
             let (tx, rx) = std::sync::mpsc::channel();
             let _input_handle = {
                 let tx = tx.clone();
                 std::thread::spawn(move || loop {
-                    if event::poll(Duration::from_secs_f32(1. / 20.)).unwrap() {
+                    if event::poll(Duration::from_secs_f32(1. / 10.)).unwrap() {
                         if let CEvent::Key(key) = event::read().unwrap() {
                             tx.send(Event::Input(key)).unwrap();
                         }
@@ -102,12 +103,24 @@ impl UiThread {
 
             loop {
                 let state = state.load();
+                let cfg = config::cfg();
 
                 tokio::select! {
                     msg = msg_bus.recv() => match msg {
-                        Ok(Message::Log(data)) => {
-                            log_list.push(data);
-                        },
+                        Ok(Message::ShowWindow) => { extra_settings.draw_ui = cfg.ui_conf.enabled; },
+                        Ok(Message::HideWindow) => { extra_settings.draw_ui = false; let _ = term.clear(); },
+                        Ok(Message::Log(data)) => { log_list.push(data); },
+                        Ok(Message::Exit) => {
+                            disable_raw_mode().expect("I can't");
+                            execute!(
+                                term.backend_mut(),
+                                LeaveAlternateScreen,
+                                DisableMouseCapture
+                            )
+                            .expect("FUN");
+                            term.show_cursor().expect("NOO");
+                            break;
+                        }
                         _ => {},
                     },
                     _elapsed = interval.tick() => {
@@ -127,7 +140,11 @@ impl UiThread {
                                         term.show_cursor().expect("NOO");
                                         let _ = state.msg_bus.0.send(Message::Exit);
                                         break;
-                                    }
+                                    },
+                                    KeyCode::F(2) => {
+                                        extra_settings.draw_ui = !extra_settings.draw_ui;
+                                        let _ = term.clear();
+                                    },
                                     KeyCode::F(3) => {
                                         in_color_mode = !in_color_mode;
                                     },
@@ -147,6 +164,10 @@ impl UiThread {
                             }
                         }
         
+                        if !extra_settings.draw_ui {
+                            continue;
+                        }
+
                         let ref read_data = state.last_poll;
                         let ref connection_status = state.conn;
         
@@ -215,7 +236,7 @@ impl UiThread {
                             if !cfg.ui_conf.hide_logs {
                                 info = Layout::default()
                                     .direction(Direction::Horizontal)
-                                    .constraints([Constraint::Min(20), Constraint::Percentage(100)])
+                                    .constraints([Constraint::Min(21), Constraint::Percentage(100)])
                                     .horizontal_margin(0)
                                     .vertical_margin(0)
                                     .split(layout[layout.len() - 1]);
@@ -330,6 +351,7 @@ where
 {
     let levi = LeviRipple {
         start_time: Instant::now(),
+        ms_count: 0,
     };
 
     f.render_widget(levi, area);
@@ -339,7 +361,7 @@ pub fn draw_logo<B>(f: &mut Frame<B>, area: Rect)
 where
     B: Backend,
 {
-    let cfg = &config::CONFIG;
+    let cfg = config::cfg();
 
     let max_w = LOGO_NEW.lines().fold(
         LOGO_NEW.lines().next().unwrap().chars().count(),
@@ -373,7 +395,7 @@ pub fn draw_logo_color_editor<B>(f: &mut Frame<B>, area: Rect, styles: &crate::c
 where
     B: Backend,
 {
-    let cfg = &config::CONFIG;
+    let cfg = config::cfg();
 
     let max_w = LOGO_NEW.lines().fold(
         LOGO_NEW.lines().next().unwrap().chars().count(),
@@ -476,7 +498,7 @@ pub fn draw_logs<B>(f: &mut Frame<B>, area: Rect, logs: &Vec<String>)
 where
     B: Backend,
 {
-    let cfg = &config::CONFIG;
+    let cfg = config::cfg();
     let log_size = if logs.len() > ((area.height - 2) as usize) {
         logs.len() + 2 - area.height as usize
     } else {
@@ -665,7 +687,7 @@ fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
             Row::new(["ACCURACY".into(), format!("{:.2}% {}", acc * 100., pacifist)]).style(normal_style)
         ];
     }
-    vec![Row::new(["ACCURACY", "100.00% [PACIFIST]"]).style(normal_style)]
+    vec![Row::new(["ACCURACY", "0.00% [PACIFIST]"]).style(normal_style)]
 }
 
 #[rustfmt::skip] #[allow(unreachable_patterns)]
@@ -705,7 +727,7 @@ fn create_collection_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
             Row::new(["COLLECTION ACC".into(), format!("{:.2}%", acc * 100.)]).style(normal_style),
         ];
     }
-    vec![Row::new(["COLLECTION ACC", "100.00%"]).style(normal_style)]
+    vec![Row::new(["COLLECTION ACC", "0.00%"]).style(normal_style)]
 }
 
 fn create_homing_splits_rows(
@@ -792,6 +814,7 @@ fn ddcl_warning_rows(_data: &StatsBlockWithFrames) -> Vec<Row> {
 
 pub struct LeviRipple {
     pub start_time: Instant,
+    pub ms_count: u64,
 }
 
 const TERM_COLOR_RAMP: &str = " .:-=+*#%@█";
@@ -834,7 +857,7 @@ fn buffer_as_lines(buf: &Buffer, area: &Rect) -> Vec<String> {
 
 impl<'a> Widget for GameDataColorizer {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let cfg = &config::CONFIG;
+        let cfg = config::cfg();
 
         let mut split_name_style = cfg.ui_conf.style.split_name;
         let mut split_pos_style = cfg.ui_conf.style.split_diff_pos;
@@ -890,18 +913,18 @@ impl<'a> Widget for GameDataColorizer {
 impl<'a> Widget for LeviRipple {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let lev = LEVI.with(|z| z.clone());
-        let time_elapsed = lev.start_time.elapsed().div_f32(200.);
+        let time_elapsed = lev.start_time.elapsed();
         // Different Messages so it can always be centered
         let msg1 = "Waiting for Devil Daggers";
         let msg2 = "Waiting for Game";
         let mut tmp = [0; 4];
+        let precalc = (time_elapsed.as_millis() / 200) as f32;
+        let mut slp = 0;
         for y in 0..area.height {
             for x in 0..area.width {
                 let map_x = -((area.width as f32 - x as f32) - (area.width as f32 / 2.));
                 let map_y = (area.height as f32 - y as f32) - (area.height as f32 / 2.);
-                let height = (((map_x * map_x + map_y * map_y).sqrt() / 5.)
-                    - time_elapsed.as_millis() as f32)
-                    .sin();
+                let height = (((map_x * map_x + map_y * map_y).sqrt() - precalc) / 8.).sin();
                 let height = (height * (255. / 2.)) + (255. / 2.);
                 let height = height.clamp(20., 255.);
                 buf.get_mut(x, y)
@@ -910,8 +933,11 @@ impl<'a> Widget for LeviRipple {
                         height as u8,
                         0,
                         0,
-                    )));
+                    )
+                ));
             }
+            slp += 1;
+            if slp % 5 == 0 { std::thread::sleep(Duration::from_nanos(1)); }
         }
 
         let msg;

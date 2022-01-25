@@ -62,6 +62,9 @@ Breaking Changes:
     process_name_override: None,
     block_marker_override: None,
     open_game_on_replay_request: true,
+    upload_replays_automatically: true,
+    tray_icon: false,
+    hide_window_on_start: false,
     stream: (
         stats: true,
         replay_stats: true,

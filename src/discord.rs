@@ -30,15 +30,16 @@ impl RichPresenceClient {
 
                 if !PLAYER_LB_DATA.initialized() && *state.conn == ConnectionState::Connected && tries < 15 && game_data.block.player_id != 0 {
                     tries += 1;
-                    if let Ok(player_entry) = ddcore_rs::ddinfo::get_leaderboard_user_by_id(game_data.block.player_id).await {
-                        let _ = PLAYER_LB_DATA.set(player_entry);
+                    match ddcore_rs::ddinfo::get_leaderboard_user_by_id(game_data.block.player_id).await {
+                        Ok(player_entry) => { let _ = PLAYER_LB_DATA.set(player_entry); },
+                        Err(e) => { log::warn!("Failed to pull player data from ddinfo ({}/{}): {:?}", tries, 15, e); }
                     }
                 }
 
                 let mut dagger = "pleb";
 
                 if PLAYER_LB_DATA.initialized() {
-                    let time = (PLAYER_LB_DATA.get().unwrap().time as f32) / 10000.;
+                    let time = PLAYER_LB_DATA.get().unwrap().time;
                     if time >= 1000.0 {
                         dagger = "levi";
                     } else if time >= 500.0 {
@@ -57,8 +58,6 @@ impl RichPresenceClient {
                         is_rpc_connected = true;
                         log::info!("Connected discord rich presence");
                         continue;
-                    } else {
-                        log::info!("{:?}", client.connect().err());
                     }
                 }
 

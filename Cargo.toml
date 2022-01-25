@@ -11,31 +11,40 @@ codegen-units = 1
 [dependencies]
 discord-rich-presence = "0.1.8"
 ddcore-rs = { git = "https://github.com/lsaa/ddcore-rs", version = "0.1.20", branch = "master", features = ["memory", "ddinfo", "ddcl_submit", "logger", "ddreplay"] }
-tonic = "0.5.2"
-prost = "0.8"
-tui = { version = "0.16.0", default-features = false, features = ["crossterm", "serde"]}
-crossterm = "0.20.0"
-ron = "0.6.4"
-serde = { version = "1.0.60", features = ["serde_derive"] }
+tonic = "0.6.2"
+prost = "0.9"
+tui = { version = "0.17.0", default-features = false, features = ["serde", "crossterm"]}
+crossterm = "0.22.1"
+ron = "0.7.0"
+serde = { version = "1.0", features = ["serde_derive"] }
 serde_json = "1.0"
-log = "0.4.14"
-simple-logging = "2.0.2"
-regex = "1.5.4"
-futures = "0.3.17"
+log = "0.4"
+simple-logging = "2.0"
+regex = "1.5"
+futures = "0.3"
 tokio = { version = "1.11.0", default-features = false, features = ["full"] }
 tokio-stream = { version = "0.1.7", features = ["net"] }
-log-panics = "2.0.0"
+log-panics = "2.0"
 num-traits = "0.2"
 num-derive = "0.2"
-hyper = "0.14.12"
-hyper-tls = { version = "0.5.0", features = ["vendored"] }
-warp = "0.3.1"
-lazy_static = "1.4.0"
+hyper = "0.14"
+hyper-tls = { version = "0.5", features = ["vendored"] }
+warp = "0.3.2"
+lazy_static = "1.4"
 clipboard = "0.5.0"
 native-tls = "0.2.8"
 websocket = "0.26.2"
-anyhow = "1.0.43"
-arc-swap = "1.5.0"
+anyhow = "1.0"
+arc-swap = "1.5"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.9", features = ["tlhelp32", "winuser", "wincon"] }
+trayicon = { version = "0.1.3", features = [] }
+winconsole = "0.11.1"
+winreg = "0.10.1"
 
 [build-dependencies]
-tonic-build = { version = "0.5.2", features = ["prost"] }
+tonic-build = { version = "0.6.2", features = ["prost"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"

@@ -82,6 +82,7 @@ impl LiveGameClient {
 
                                     log::info!("Submitting SIO {}", create_sio_submit(&submit_evt, (notify_pb, notify_above_1000)));
                                     let sio_submit = current_socket.as_mut().unwrap().send_message(&Message::text(create_sio_submit(&submit_evt, (notify_pb, notify_above_1000))));
+                                    new_sio_message = None;
                                     if sio_submit.is_err() {
                                         current_socket = None;
                                         lgc.sio_status = SioStatus::Disconnected;

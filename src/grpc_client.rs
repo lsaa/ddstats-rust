@@ -49,6 +49,19 @@ impl GameSubmissionClient {
                             if should_submit_sio(&sge) {
                                 let _ = state.msg_bus.0.send(Message::SocketIoMessage(SubmitSioEvent { game_id: res.game_id }));
                             }
+
+                            let should_upload = should_upload_replay(&sge);
+                            let game_id = res.game_id.clone();
+                            let data_arc = sge.2.clone();
+                            tokio::spawn(async move {
+                                let replay_hash = format!("{:x}", ddcore_rs::md5::compute(&*data_arc));
+                                if let Ok(_) = ddcore_rs::ddreplay::create_ddstats_trace(game_id as u64, replay_hash).await  {
+                                    log::info!("traced ddstats game: {}", game_id);
+                                    if should_upload {
+                                        let _ = state.msg_bus.0.send(Message::UploadReplayData(data_arc));
+                                    }
+                                }
+                            });
                         } else {
                             log::error!("Couldn't submit: {:?}", res);
                             let _ = state.msg_bus.0.send(Message::Log(format!("Failed to Submit")));
@@ -67,6 +80,19 @@ fn should_submit_sio(data: &SubmitGameEvent) -> bool {
     if is_non_default && !cfg.submit.non_default_spawnsets { return false; }
     cfg.stream.stats && !data.0.is_replay
     || cfg.stream.replay_stats && data.0.is_replay
+}
+
+#[rustfmt::skip]
+fn should_upload_replay(data: &SubmitGameEvent) -> bool{
+    let cfg = crate::config::cfg();
+    if !cfg.upload_replays_automatically { return false; }
+    let is_non_default = data.0.level_hash_md5.ne(&V3_SURVIVAL_HASH.to_uppercase());
+    if is_non_default { return false; }
+    if data.0.time_max < 100. { return false; }
+    if data.0.time_max < 500. && data.0.daggers_hit > 0 { return false; }
+    if data.0.is_replay && !cfg.submit.replay_stats { return false; }
+    if !data.0.is_replay && !cfg.submit.stats { return false; }
+    true
 }
 
 #[rustfmt::skip]
