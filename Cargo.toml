@@ -5,7 +5,7 @@ edition = "2021"
 
 [profile.release]
 strip = true
-lto = true
+lto = false # AHHHHAHAHAHHAHAHHAH WINDOWS!!!!!!!!!!!!!!!!
 codegen-units = 1
 
 [dependencies]

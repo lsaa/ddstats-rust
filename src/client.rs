@@ -153,6 +153,7 @@ impl GamePollClient {
             self.connection = new_connection;
             self.connecting_start = Instant::now();
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connecting)));
+            log::info!("Connecting...");
         } else {
             match conn_res.as_ref().err() {
                 Some(m) => {

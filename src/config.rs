@@ -22,6 +22,10 @@ use crate::ui::GameDataModules;
 
 const DEFAULT_CFG: &str = include_str!("../default_cfg.ron");
 
+lazy_static! {
+    pub static ref CONFIG: AAS<DDStatsRustConfig> = Arc::new(ArcSwap::from_pointee(get_config()));
+}
+
 #[derive(Deserialize, serde::Serialize)]
 pub struct UiConf {
     pub enabled: bool,
@@ -94,7 +98,6 @@ pub struct DDStatsRustConfig {
     pub ui_conf: UiConf,
     pub linux_restart_as_child: bool,
     pub use_linux_proton: bool,
-    pub ddcl: Ddcl,
     #[serde(default)]
     pub tray_icon: bool,
     #[serde(default)]
@@ -120,6 +123,8 @@ pub struct Submit {
     pub stats: bool,
     pub replay_stats: bool,
     pub non_default_spawnsets: bool,
+    #[serde(default)]
+    pub ddcl: bool,
 }
 
 #[derive(Deserialize, serde::Serialize)]
@@ -127,25 +132,6 @@ pub struct Discord {
     pub notify_above_1000: bool,
     pub notify_player_best: bool,
     pub notify_custom_spawnsets: bool,
-}
-
-#[derive(Deserialize, serde::Serialize)]
-pub struct Ddcl {
-    pub submit: bool,
-    pub replays: bool,
-}
-
-impl std::default::Default for Ddcl {
-    fn default() -> Self {
-        Self {
-            submit: true,
-            replays: true,
-        }
-    }
-}
-
-lazy_static! {
-    pub static ref CONFIG: AAS<DDStatsRustConfig> = Arc::new(ArcSwap::from_pointee(get_config()));
 }
 
 #[cfg(target_os = "linux")]
@@ -205,7 +191,7 @@ fn get_config() -> DDStatsRustConfig {
         }
     }
 
-    from_str(DEFAULT_CFG).expect("FUN")
+    from_str(DEFAULT_CFG).expect("Invalid config")
 }
 
 #[cfg(target_os = "windows")]

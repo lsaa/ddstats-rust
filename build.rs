@@ -1,6 +1,6 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    #[cfg(windows)] {
+    #[cfg(target_os = "windows")] {
         use winres::WindowsResource;
 
         WindowsResource::new()

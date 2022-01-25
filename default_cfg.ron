@@ -74,17 +74,13 @@ Breaking Changes:
         stats: true,
         replay_stats: true,
         non_default_spawnsets: false,
+        ddcl: true,
     ),
     discord: (
         notify_above_1000: true,
         notify_player_best: true,
         notify_custom_spawnsets: false,
     ),
-    ddcl: (
-        submit: true,
-        replays: false,
-    ),
-    // UI Config
     ui_conf: (
         enabled: true,
         logo_style: Auto, // Off, Auto, Full, Mini
@@ -92,23 +88,22 @@ Breaking Changes:
         orb_connection_animation: true,
         column_distance: 30,
         style: (
-            logo:               (fg: Some(Red), bg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            logs:               (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            log_text:           (fg: Some(White), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            most_recent_log:    (bg: Some(White), fg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            game_data:          (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_name:         (fg: Some(Yellow), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_value:        (fg: Some(Magenta), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_diff_pos:     (fg: Some(Green), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_diff_neg:     (fg: Some(Red), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0))
+            logo:               (bg: Some(Black), fg: Some(Red),     add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            logs:               (bg: Some(Black), fg: Some(White),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            log_text:           (bg: None,        fg: Some(White),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            most_recent_log:    (bg: Some(White), fg: Some(Black),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            game_data:          (bg: Some(Black), fg: Some(White),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            split_name:         (bg: None,        fg: Some(Yellow),  add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            split_value:        (bg: None,        fg: Some(Magenta), add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            split_diff_pos:     (bg: None,        fg: Some(Green),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+            split_diff_neg:     (bg: None,        fg: Some(Red),     add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
         ),
         game_data_modules: [
-            DdclOutOfDateWarning,
             RunData,
             Timer,
             Gems,
             Accuracy,
-            Homing(Full), // Minimal, Compact, Full
+            Homing(Compact), // Minimal, Compact, Full
             GemsLost(Full), // Minimal, Compact, Full
             CollectionAccuracy,
             HomingUsed,
