@@ -4,9 +4,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use winres::WindowsResource;
 
         WindowsResource::new()
-            .append_rc_content("1 ICON \"logo.ico\"")
-            .append_rc_content("2 ICON \"logo_dark.ico\"")
-            .append_rc_content("3 ICON \"logo_light.ico\"")
+            .append_rc_content("1 ICON \"assets\\logo.ico\"")
+            .append_rc_content("2 ICON \"assets\\logo16_dark.ico\"")
+            .append_rc_content("3 ICON \"assets\\logo16_light.ico\"")
+            .append_rc_content("4 ICON \"assets\\logo32_dark.ico\"")
+            .append_rc_content("5 ICON \"assets\\logo32_light.ico\"")
             .compile()?;
     }
 

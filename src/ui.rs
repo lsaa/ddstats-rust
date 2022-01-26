@@ -109,7 +109,10 @@ impl UiThread {
                     msg = msg_bus.recv() => match msg {
                         Ok(Message::ShowWindow) => { extra_settings.draw_ui = cfg.ui_conf.enabled; },
                         Ok(Message::HideWindow) => { extra_settings.draw_ui = false; let _ = term.clear(); },
-                        Ok(Message::Log(data)) => { log_list.push(data); },
+                        Ok(Message::Log(data)) => { 
+                            log::info!("LOG: {:?}", data);
+                            log_list.push(data); 
+                        },
                         Ok(Message::Exit) => {
                             disable_raw_mode().expect("I can't");
                             execute!(

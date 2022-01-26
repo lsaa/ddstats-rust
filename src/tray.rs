@@ -24,9 +24,9 @@ impl TrayIcon {
         let light_theme = is_light_theme();
 
         if light_theme {
-            unsafe { set_icon(3) };
+            unsafe { set_small_icon(3); set_big_icon(5); };
         } else {
-            unsafe { set_icon(2) };
+            unsafe { set_small_icon(2); set_big_icon(4); };
         }
 
         if !cfg.tray_icon {
@@ -38,8 +38,8 @@ impl TrayIcon {
             let mut bus_recv = state.load().msg_bus.0.subscribe();
             let bus_sndr = state.load().msg_bus.0.clone();
 
-            let icon_dark = include_bytes!("../logo16_dark.ico");
-            let icon_light = include_bytes!("../logo16_light.ico");
+            let icon_dark = include_bytes!("../assets/logo16_dark.ico");
+            let icon_light = include_bytes!("../assets/logo16_light.ico");
         
             let icon_dark = Icon::from_buffer(icon_dark, None, None).unwrap();
             let icon_light = Icon::from_buffer(icon_light, None, None).unwrap();
@@ -108,6 +108,25 @@ impl TrayIcon {
             }
         });
     }
+}
+
+pub unsafe fn set_big_icon(icon_id: u16) {
+    use winapi::um::wincon::GetConsoleWindow;
+    let hinstance = GetModuleHandleA(std::ptr::null_mut());
+    let window = GetConsoleWindow();
+    let icon_res = MAKEINTRESOURCEA(icon_id);
+    let icon = LoadIconA(hinstance, icon_res);
+    SendMessageA(window, WM_SETICON, ICON_BIG as usize, icon as isize);
+}
+
+pub unsafe fn set_small_icon(icon_id: u16) {
+    use winapi::um::wincon::GetConsoleWindow;
+    let hinstance = GetModuleHandleA(std::ptr::null_mut());
+    let window = GetConsoleWindow();
+    let icon_res = MAKEINTRESOURCEA(icon_id);
+    let icon = LoadIconA(hinstance, icon_res);
+    SendMessageA(window, WM_SETICON, ICON_SMALL as usize, icon as isize);
+    SendMessageA(window, WM_SETICON, ICON_SMALL2 as usize, icon as isize);
 }
 
 pub unsafe fn set_icon(icon_id: u16) {

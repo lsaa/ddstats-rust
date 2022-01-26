@@ -173,7 +173,7 @@ impl GamePollClient {
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::NotConnected)));
         }
 
-        if let Ok(_) = self.connection.read_stats_block_with_frames() {
+        if let Ok(_) = self.connection.is_alive_res() {
             self.connection_state = ConnectionState::Connected;
             let _ = self.state.load().msg_bus.0.send(Message::Log(format!("Game Connected!")));
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connected)));

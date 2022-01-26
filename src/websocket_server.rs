@@ -79,17 +79,22 @@ impl WebsocketServer {
                     warp::sse::reply(event_stream)
                 });
 
+            let cors = warp::cors()
+                .allow_any_origin()
+                .allow_headers(vec!["*"])
+                .allow_methods(vec!["POST", "GET"]);
+
             let routes = health_check
                 .or(ws)
                 .or(stream)
-                .with(warp::cors().allow_any_origin());
+                .with(cors);
 
-            let cert = include_bytes!("../tls/certificate.crt");
-            let key = include_bytes!("../tls/privateKey.key");
+            //let cert = include_bytes!("../tls/certificate.crt");
+            //let key = include_bytes!("../tls/privateKey.key");
             warp::serve(routes)
-                .tls()
-                .cert(cert)
-                .key(key)
+                //.tls()
+                //.cert(cert)
+                //.key(key)
                 .run(SocketAddr::new(
                     IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
                     13666,
