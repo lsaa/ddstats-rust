@@ -154,6 +154,9 @@ impl UiThread {
                                     KeyCode::F(5) => {
                                         extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
                                     },
+                                    KeyCode::F(4) => {
+                                        let _ = state.msg_bus.0.send(Message::HideWindow);
+                                    },
                                     KeyCode::F(7) => {
                                         let _ = state.msg_bus.0.send(Message::Log("Uploading Replay...".to_string()));
                                         let _ = state.msg_bus.0.send(Message::UploadReplayBuffer);
