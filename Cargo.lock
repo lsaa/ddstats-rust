@@ -424,7 +424,7 @@ dependencies = [
 [[package]]
 name = "ddcore-rs"
 version = "0.1.20"
-source = "git+https://github.com/lsaa/ddcore-rs?branch=master#c0efaf8d376742d762bb78ff12a859942e51fd07"
+source = "git+https://github.com/lsaa/ddcore-rs?branch=master#927747a74bbc3dd3639ef9761861d27ed5f28597"
 dependencies = [
  "aes",
  "anyhow",

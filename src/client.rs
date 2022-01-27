@@ -86,7 +86,6 @@ impl GamePollClient {
                         _ => {},
                     },
                     _elapsed = interval.tick() => {
-                        interval.tick().await;
                         c.tick().await;
                     }
                 }
@@ -155,14 +154,7 @@ impl GamePollClient {
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connecting)));
             log::info!("Connecting...");
         } else {
-            match conn_res.as_ref().err() {
-                Some(m) => {
-                    if !m.contains("Process not found") {
-                        log::info!("{:?}", conn_res.err());
-                    }
-                },
-                _ => { log::info!("{:?}", conn_res.err()); },
-            }
+            //log::info!("{:?}", conn_res.err());
         }
     }
 
@@ -177,6 +169,8 @@ impl GamePollClient {
             self.connection_state = ConnectionState::Connected;
             let _ = self.state.load().msg_bus.0.send(Message::Log(format!("Game Connected!")));
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connected)));
+        } else {
+            log::info!("{:?}", self.connection.is_alive_res().err());
         }
     }
 
@@ -225,7 +219,7 @@ impl GamePollClient {
                             },
                             Err(e) => {
                                 let _ = msg_bus.send(Message::Log("Replay Exists".to_string()));
-                                log::info!("Failed replay upload: {:?}", e);
+                                log::info!("Failed replay upload: {e:?}");
                             }
                         }
                     });
