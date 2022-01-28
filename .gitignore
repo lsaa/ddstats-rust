@@ -6,3 +6,5 @@ modules.xml
 ddstats-rust.iml
 vcs.xml
 /.idea
+run_dbg.bat
+run_release.bat

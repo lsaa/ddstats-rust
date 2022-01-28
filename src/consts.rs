@@ -2,8 +2,6 @@
 // consts
 //
 
-pub const DEATH_STATUS: i32 = 7;
-
 pub const V3_SURVIVAL_HASH: &str = "569fead87abf4d30fdee4231a6398051";
 
 pub const VERSION: &str = "0.6.10";
@@ -46,7 +44,7 @@ pub const SUBMIT_RETRY_MAX: u16 = 10;
 //Linux
 #[cfg(target_os = "linux")]
 pub const DD_PROCESS: &str = "devildaggers";
-pub const LINUX_BLOCK_START: usize = 0x0053A850;
+pub const LINUX_BLOCK_START: usize = 0x00521C98;
 
 //Windows
 #[cfg(target_os = "windows")]
@@ -66,7 +64,7 @@ pub const DEATH_TYPES: [&str; 17] = [
     "Eviscerated",  // centipide
     "Annihilated",  // gigapede
     "Intoxicated",  // 3.0 ghost || spider 1
-    "Envenomated",  // spider 2
+    "Envenmonated", // spider 2
     "Incarnated",   // levi
     "Discarnated",  // orb
     "Entangled",    // Replaced BARBED || thorn

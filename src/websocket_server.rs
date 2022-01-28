@@ -7,18 +7,17 @@ use ddcore_rs::models::{StatsBlockWithFrames, StatsDataBlock, StatsFrame};
 use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
 use hyper::client::HttpConnector;
-use hyper::{Body, Client, Method, Request};
-use hyper_tls::HttpsConnector;
+use hyper::{Body, Method, Request};
 use regex::{Match, Regex};
 use ron::ser::{to_string_pretty, PrettyConfig};
-use tokio::sync::mpsc::Sender;
+use serde::{Serialize, Deserialize};
+use serde_json::Value;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::RwLock;
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
 use tui::style::{Color, Style};
@@ -29,24 +28,21 @@ use warp::{
 };
 
 use crate::client::ConnectionState;
-use crate::threads::WsBroadcast;
+use crate::config::{Styles, CONFIG};
+use crate::threads::{AAS, State};
 
+#[derive(Debug, Serialize, Clone)]
+pub struct WsBroadcast {
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub data: String,
+}
 pub struct WebsocketServer;
-
-type ColorStyles = Arc<RwLock<crate::config::Styles>>;
-type Snowflake = Arc<RwLock<u128>>;
 
 static LAST_SNOWFLAKE: AtomicU64 = AtomicU64::new(0);
 
 impl WebsocketServer {
-    pub async fn init(
-        poll: PollData, 
-        styles: ColorStyles, 
-        snowflake: Snowflake, 
-        replay_request_send: Sender<Vec<u8>>, 
-        conn: Arc<RwLock<ConnectionState>>, 
-        ws_broadcast: tokio::sync::broadcast::Sender<WsBroadcast>
-    ) {
+    pub async fn init(state: AAS<State>) {
         tokio::spawn(async move {
             log::info!("initializing server on port: 13666");
 
@@ -54,55 +50,53 @@ impl WebsocketServer {
 
             let ws = warp::path::end()
                 .and(warp::ws())
-                .and(with_poll_data(poll.clone()))
-                .and(with_color_edit_styles(styles.clone()))
-                .and(with_replay_sender(replay_request_send.clone()))
-                .and(with_conn(conn.clone()))
-                .and(with_ws_broadcast_recv(ws_broadcast))
-                .map(|ws: warp::ws::Ws, poll, styles, replay_send, conn: Arc<RwLock<ConnectionState>>, ws_br| {
+                .and(with_state_data(state.clone()))
+                .map(|ws: warp::ws::Ws, state| {
                     log::info!("upgrading connection to websocket");
-                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, poll, styles, replay_send, conn, ws_br))
+                    ws.on_upgrade(move |websocket| handle_ws_client(websocket, state))
                 });
 
             let stream = warp::path("miniblock")
                 .and(warp::get())
-                .and(with_poll_data(poll.clone()))
-                .and(with_snowflake(snowflake.clone()))
-                .map(|poll: PollData, flake: Snowflake| {
+                .and(with_state_data(state.clone()))
+                .map(|state: AAS<State>| {
                     let interval = interval(Duration::from_secs_f32(1. / 36.));
                     let mut is_first = true;
                     let stream = IntervalStream::new(interval);
                     let event_stream = stream.map(move |_instant| {
+                        let state = state.load();
+
                         if is_first {
                             is_first = false;
                             return sse_first();
                         }
 
-                        let d = poll.try_read();
-                        let snowflake_res = flake.try_read();
-
-                        if d.is_err() || snowflake_res.is_err() {
-                            return sse_empty();
-                        }
-
-                        let d = d.unwrap().clone();
-                        let snowflaked = snowflake_res.unwrap().clone();
                         let mini = MiniBlock::from_stats(
-                            &d,
-                            snowflaked
+                            state.last_poll.clone(),
+                            state.snowflake.clone()
                         );
 
-                        sse_miniblock(mini, &d)
+                        sse_miniblock(mini, state.last_poll.clone())
                     });
                     warp::sse::reply(event_stream)
                 });
 
+            let cors = warp::cors()
+                .allow_any_origin()
+                .allow_headers(vec!["*"])
+                .allow_methods(vec!["POST", "GET"]);
+
             let routes = health_check
                 .or(ws)
                 .or(stream)
-                .with(warp::cors().allow_any_origin());
+                .with(cors);
 
+            //let cert = include_bytes!("../tls/certificate.crt");
+            //let key = include_bytes!("../tls/privateKey.key");
             warp::serve(routes)
+                //.tls()
+                //.cert(cert)
+                //.key(key)
                 .run(SocketAddr::new(
                     IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
                     13666,
@@ -115,36 +109,49 @@ impl WebsocketServer {
 
 async fn handle_ws_client(
     websocket: warp::ws::WebSocket, 
-    data: PollData, styles: ColorStyles, 
-    replay_send: Sender<Vec<u8>>, 
-    conn: Arc<RwLock<ConnectionState>>,
-    mut ws_br: tokio::sync::broadcast::Receiver<WsBroadcast>
+    state: AAS<State>
 ) {
     let (mut sender, mut receiver) = websocket.split();
+    let mut msg_bus = state.load().msg_bus.0.subscribe();
 
-    while let Some(body) = receiver.next().await {
-        let message = match body {
-            Ok(msg) => msg,
-            Err(e) => {
-                log::error!("error reading message on websocket: {}", e);
-                break;
+    loop {
+        tokio::select! {
+            msg = msg_bus.recv() => match msg {
+                Ok(crate::threads::Message::WebSocketMessage(data)) => {
+                    let t = serde_json::to_string(&data).unwrap();
+                    let _ = sender.send(Message::text(t)).await;
+                },
+                _ => {},
+            },
+            body = receiver.next() => {
+                let message = match body {
+                    Some(Ok(msg)) => msg,
+                    Some(Err(e)) => {
+                        log::error!("error reading message on websocket: {}", e);
+                        break;
+                    },
+                    None => { break; }
+                };
+        
+                handle_websocket_message(message, &mut sender, state.clone()).await;
             }
-        };
-
-        handle_websocket_message(message, &mut sender, data.clone(), styles.clone(), replay_send.clone(), conn.clone(), &mut ws_br).await;
+        }
     }
 
-    log::info!("client disconnected");
+    log::info!("websocket client disconnected");
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WsRecvMsg {
+    #[serde(rename = "type")]
+    pub _type: String,
+    pub data: Value,
 }
 
 async fn handle_websocket_message(
     message: Message,
     sender: &mut SplitSink<WebSocket, Message>,
-    data: PollData,
-    styles: ColorStyles,
-    replay_send: Sender<Vec<u8>>,
-    conn: Arc<RwLock<ConnectionState>>,
-    ws_br: &mut tokio::sync::broadcast::Receiver<WsBroadcast>
+    data: AAS<State>,
 ) {
     let msg = if let Ok(s) = message.to_str() {
         s
@@ -153,36 +160,38 @@ async fn handle_websocket_message(
         return;
     };
 
-    if msg.eq("gimme") {
-        let mut v = StatsDto::from_sbwf(data.read().await.clone());
-        v.additional_info.connection_state = Some(conn.read().await.clone());
-        let t = format!("{{\"type\": \"fullblock\", \"data\": {} }}", serde_json::to_string(&v).unwrap());
-        let _ = sender
-            .send(Message::text(t))
-            .await;
-    }
+    let msg: WsRecvMsg = if let Ok(s) = serde_json::from_str(msg) {
+        s
+    } else {
+        return;
+    };
 
-    if let Ok(msg) = ws_br.try_recv() {
-        let t = serde_json::to_string(&msg).unwrap();
+    let state = data.load();
+
+    if msg._type.eq("gimme") {
+        let mut v = StatsDto::from_sbwf(state.last_poll.clone());
+        let s = (*state.conn).clone();
+        v.additional_info.connection_state = Some(s);
+        let t = format!("{{\"type\": \"fullblock\", \"data\": {} }}", serde_json::to_string(&v).unwrap());
         let _ = sender.send(Message::text(t)).await;
     }
 
-    if msg.eq("config") {
+    if msg._type.eq("config") {
         let t = serde_json::to_string(crate::config::cfg().as_ref()).unwrap();
         let t = format!("{{\"type\": \"config\", \"data\": {} }}", t);
         let _ = sender.send(Message::text(t)).await;
     }
 
-    if msg.starts_with("ddcl_replay") {
-        let id = i32::from_str_radix(msg.split(" ").nth(1).unwrap(), 10).unwrap();
-        let replay_sender_clone = replay_send.clone();
+    if msg._type.eq("ddcl_replay") {
+        let id = msg.data.as_u64().unwrap_or(0) as i32;
         let cfg = crate::config::cfg();
-        if conn.read().await.eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
+        if (*state.conn).eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
             log::info!("Opened DD: {:?}", ddcore_rs::memory::start_dd());
         }
+        let replay_sender = state.msg_bus.0.clone();
         tokio::spawn(async move {
             if let Ok(replay) = ddcore_rs::ddinfo::get_replay_by_id(id).await {
-                let _ = replay_sender_clone.send(replay).await;
+                let _ = replay_sender.send(crate::threads::Message::Replay(Arc::new(replay)));
             } else {
                 log::warn!("Failed to load DDCL replay {}", id);
             }
@@ -191,83 +200,42 @@ async fn handle_websocket_message(
         let _ = sender.send(Message::text(t)).await;
     }
 
-    if msg.starts_with("replay_link") {
-        let link = format!("{}", msg.clone().split(" ").nth(1).unwrap());
+    if msg._type.eq("replay_link") {
+        let link = msg.data.as_str();
+        if link.is_none() {
+            return;
+        }
+        let link = link.unwrap().to_string();
         let lc = link.clone();
-        let replay_sender_clone = replay_send.clone();
         let cfg = crate::config::cfg();
-        if conn.read().await.eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
+        if (*state.conn).eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
             log::info!("Opened DD: {:?}", ddcore_rs::memory::start_dd());
         }
+        let replay_sender = state.msg_bus.0.clone();
         tokio::spawn(async move {
             if let Ok(replay) = get_replay_link(&link).await {
-                let _ = replay_sender_clone.send(replay).await;
+                let _ = replay_sender.send(crate::threads::Message::Replay(Arc::new(replay)));
             } else {
                 log::warn!("Failed to load replay {}", link);
             }
         });
-        let t = format!("{{\"type\": \"replay_link_ok\", \"data\": {{ \"replay_link\": {} }} }}", lc);
+        let t = format!("{{\"type\": \"replay_link_ok\", \"data\": {{ \"replay_link\": \"{}\" }} }}", lc);
         let _ = sender.send(Message::text(t)).await;
     }
 
-    if msg.starts_with("clr-set") {
-        let re =
-            Regex::new(r"clr-set\s(\w*)\s(\w*)\s(\d*)\s(\d*)\s(\d*)\s(\w*)\s(\d*)\s(\d*)\s(\d*)")
-                .unwrap();
-        for cap in re.captures_iter(msg) {
-            let mut writer = styles.write().await;
-
-            let (
-                field,
-                color_type1,
-                color1r,
-                color1g,
-                color1b, // BG
-                color_type2,
-                color2r,
-                color2g,
-                color2b, // FG
-            ) = (
-                cap.get(1).unwrap(),
-                cap.get(2).unwrap(),
-                cap.get(3).unwrap(),
-                cap.get(4).unwrap(),
-                cap.get(5).unwrap(),
-                cap.get(6).unwrap(),
-                cap.get(7).unwrap(),
-                cap.get(8).unwrap(),
-                cap.get(9).unwrap(),
-            );
-
-            let bg = color_from_match(color_type1, color1r, color1g, color1b);
-            let fg = color_from_match(color_type2, color2r, color2g, color2b);
-
-            match field.as_str() {
-                "logo" => writer.logo = Style::default().fg(fg).bg(bg),
-                "logs" => writer.logs = Style::default().fg(fg).bg(bg),
-                "log_text" => writer.log_text = Style::default().fg(fg).bg(bg),
-                "most_recent_log" => writer.most_recent_log = Style::default().fg(fg).bg(bg),
-                "game_data" => writer.game_data = Style::default().fg(fg).bg(bg),
-                "split_name" => writer.split_name = Style::default().fg(fg).bg(bg),
-                "split_value" => writer.split_value = Style::default().fg(fg).bg(bg),
-                "split_diff_pos" => writer.split_diff_pos = Style::default().fg(fg).bg(bg),
-                "split_diff_neg" => writer.split_diff_neg = Style::default().fg(fg).bg(bg),
-                _ => {}
-            };
-
-            let t = format!("{{\"type\": \"color_set_ok\", \"data\": null }}");
-            let _ = sender.send(Message::text(t)).await;
+    if msg._type.eq("clr-set") {
+        let styles: Result<Styles, serde_json::Error> = serde_json::from_str(&msg.data.to_string());
+        if styles.is_err() {
+            return;
         }
+        let styles = styles.unwrap();
+        let mut c = (*CONFIG.load_full()).clone();
+        c.ui_conf.style = styles;
+        CONFIG.swap(Arc::new(c));
+        let t = format!("{{\"type\": \"color_set_ok\", \"data\": null }}");
+        let _ = sender.send(Message::text(t)).await;
     }
 
-    if msg.starts_with("get-style") {
-        let r = styles.read().await.clone();
-        let pretty = PrettyConfig::new();
-        let s = to_string_pretty(&r, pretty).expect("Serialization failed");
-        let t = format!("{{\"type\": \"get_style\", \"data\": {} }}", s);
-        let sent = sender.send(Message::text(t)).await;
-        log::info!("Get Style Request: {:?}", sent);
-    }
 }
 
 struct ColorProxy(pub Color);
@@ -310,31 +278,8 @@ fn color_from_match(enum_type: Match, red: Match, green: Match, blue: Match) -> 
     }
 }
 
-type PollData = Arc<RwLock<StatsBlockWithFrames>>;
 
-fn with_poll_data(c: PollData) -> impl Filter<Extract = (PollData,), Error = Infallible> + Clone {
-    warp::any().map(move || c.clone())
-}
-
-fn with_conn(c: Arc<RwLock<ConnectionState>>) -> impl Filter<Extract = (Arc<RwLock<ConnectionState>>,), Error = Infallible> + Clone {
-    warp::any().map(move || c.clone())
-}
-
-fn with_replay_sender(c: Sender<Vec<u8>>) -> impl Filter<Extract = (Sender<Vec<u8>>,), Error = Infallible> + Clone {
-    warp::any().map(move || c.clone())
-}
-
-fn with_snowflake(c: Snowflake) -> impl Filter<Extract = (Snowflake,), Error = Infallible> + Clone {
-    warp::any().map(move || c.clone())
-}
-
-fn with_ws_broadcast_recv(c: tokio::sync::broadcast::Sender<WsBroadcast>) -> impl Filter<Extract = (tokio::sync::broadcast::Receiver<WsBroadcast>,), Error = Infallible> + Clone {
-    warp::any().map(move || c.subscribe())
-}
-
-fn with_color_edit_styles(
-    c: ColorStyles,
-) -> impl Filter<Extract = (ColorStyles,), Error = Infallible> + Clone {
+fn with_state_data(c: AAS<State>) -> impl Filter<Extract = (AAS<State>,), Error = Infallible> + Clone {
     warp::any().map(move || c.clone())
 }
 
@@ -375,11 +320,11 @@ pub struct AdditionalInfo {
 }
 
 impl StatsDto {
-    pub fn from_sbwf(data: StatsBlockWithFrames) -> Self {
+    pub fn from_sbwf(data: Arc<StatsBlockWithFrames>) -> Self {
         let s = data.frames.len();
         Self {
-            block: data.block,
-            frames: data.frames,
+            block: data.block.clone(),
+            frames: data.frames.clone(),
             additional_info: AdditionalInfo {
                 frame_count: s,
                 connection_state: None
@@ -397,7 +342,7 @@ pub struct MiniDto {
 }
 
 impl MiniBlock {
-    pub fn from_stats(data: &StatsBlockWithFrames, snowflake: u128) -> Self {
+    pub fn from_stats(data: Arc<StatsBlockWithFrames>, snowflake: Arc<u128>) -> Self {
         Self {
             time: data.block.time,
             daggers_fired: data.block.daggers_fired,
@@ -410,7 +355,7 @@ impl MiniBlock {
             homing: data.block.homing,
             kills: data.block.kills,
             status: data.block.status,
-            snowflake
+            snowflake: *snowflake
         }
     }
 }
@@ -419,11 +364,11 @@ fn sse_first() -> Result<Event, Infallible> {
     Ok(warp::sse::Event::default().data("{\"type\":\"hello\"}".to_string()))
 }
 
-fn sse_empty() -> Result<Event, Infallible> {
+fn _sse_empty() -> Result<Event, Infallible> {
     Ok(warp::sse::Event::default().data("{\"type\":\"empty\"}".to_string()))
 }
 
-fn sse_miniblock(miniblock: MiniBlock, data: &StatsBlockWithFrames) -> Result<Event, Infallible> {
+fn sse_miniblock(miniblock: MiniBlock, data: Arc<StatsBlockWithFrames>) -> Result<Event, Infallible> {
     let sn = &LAST_SNOWFLAKE;
     let v = sn.load(std::sync::atomic::Ordering::Relaxed);
     let mut extra = None;
@@ -431,13 +376,13 @@ fn sse_miniblock(miniblock: MiniBlock, data: &StatsBlockWithFrames) -> Result<Ev
         sn.store(miniblock.snowflake as u64, std::sync::atomic::Ordering::Release);
         let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() - miniblock.snowflake;
         if t < Duration::from_secs(20).as_millis() {
-            let mut extrae = data.clone();
+            let mut extrae = (*data).clone();
             if data.frames.len() > 0 {
                 extrae.frames = vec![data.frames[0]];
             } else {
                 extrae.frames = vec![];
             }
-            extra = Some(StatsDto::from_sbwf(extrae));
+            extra = Some(StatsDto::from_sbwf(Arc::new(extrae)));
         }
     }
     let pain = serde_json::to_string(&MiniDto {

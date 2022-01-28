@@ -8,7 +8,6 @@ use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
 use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use regex::Regex;
-use tokio::sync::RwLock;
 use tui::{
     backend::{Backend, CrosstermBackend},
     buffer::Buffer,
@@ -27,10 +26,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, LeaveAlternateScreen},
 };
 
-use crate::{client::ConnectionState, config::{self, LogoStyle}, consts::*};
+use crate::{client::ConnectionState, config::{self, LogoStyle}, consts::*, threads::{AAS, State, Message}};
 
 thread_local! {
-    static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now() })
+    static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now(), ms_count: 0 })
 }
 
 lazy_static! {
@@ -39,7 +38,7 @@ lazy_static! {
 
 // Modular Game Data
 
-#[derive(Deserialize, serde::Serialize)]
+#[derive(Deserialize, serde::Serialize, Clone)]
 pub enum GameDataModules {
     RunData,
     Timer,
@@ -72,32 +71,27 @@ pub struct UiThread;
 #[derive(Clone, Debug)]
 pub struct ExtraSettings {
     homing_always_visible: bool,
+    draw_ui: bool,
 }
 
 impl UiThread {
-    pub async fn init(
-        latest_data: Arc<RwLock<StatsBlockWithFrames>>,
-        logs: Arc<RwLock<Vec<String>>>,
-        connected: Arc<RwLock<ConnectionState>>,
-        exit_broadcast: tokio::sync::broadcast::Sender<bool>,
-        color_edit_styles: Arc<RwLock<crate::config::Styles>>,
-        replay_request_send: tokio::sync::mpsc::Sender<Vec<u8>>
-    ) {
+    pub async fn init(state: AAS<State>) {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
-        let cfg = config::cfg();
-        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 16.));
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 14.));
+        let mut log_list = vec![];
         tokio::spawn(async move {
             let mut in_color_mode = false;
             let mut extra_settings = ExtraSettings {
                 homing_always_visible: false,
+                draw_ui: crate::config::cfg().ui_conf.enabled
             };
 
             let (tx, rx) = std::sync::mpsc::channel();
             let _input_handle = {
                 let tx = tx.clone();
                 std::thread::spawn(move || loop {
-                    if event::poll(Duration::from_secs_f32(1. / 20.)).unwrap() {
+                    if event::poll(Duration::from_secs_f32(1. / 10.)).unwrap() {
                         if let CEvent::Key(key) = event::read().unwrap() {
                             tx.send(Event::Input(key)).unwrap();
                         }
@@ -105,127 +99,167 @@ impl UiThread {
                 })
             };
 
+            let mut msg_bus = state.load().msg_bus.0.subscribe();
+
             loop {
-                interval.tick().await;
-                let ev_res = rx.try_recv();
-                if ev_res.is_ok() {
-                    let ev = ev_res.unwrap();
-                    match ev {
-                        Event::Input(event) => match event.code {
-                            KeyCode::Char('q') => {
-                                disable_raw_mode().expect("I can't");
-                                execute!(
-                                    term.backend_mut(),
-                                    LeaveAlternateScreen,
-                                    DisableMouseCapture
-                                )
-                                .expect("FUN");
-                                term.show_cursor().expect("NOO");
-                                exit_broadcast
-                                    .send(true)
-                                    .expect("Coudln't send exit broadcast");
-                                break;
-                            }
-                            KeyCode::F(3) => {
-                                in_color_mode = !in_color_mode;
-                            },
-                            KeyCode::F(5) => {
-                                extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
-                            },
-                            KeyCode::F(8) => {
-                                let replay = crate::websocket_server::get_replay_link("https://cdn.discordapp.com/attachments/287337352714518528/914003436771622932/retard_235.28-KyoZM-0adc9b9e.ddreplay").await.unwrap();
-                                replay_request_send.send(replay).await.expect("UH OH!");
-                            }
-                            _ => {}
+                let state = state.load();
+                let cfg = config::cfg();
+
+                tokio::select! {
+                    msg = msg_bus.recv() => match msg {
+                        Ok(Message::ShowWindow) => { extra_settings.draw_ui = cfg.ui_conf.enabled; },
+                        Ok(Message::HideWindow) => { extra_settings.draw_ui = false; let _ = term.clear(); },
+                        Ok(Message::Log(data)) => { 
+                            log::info!("LOG: {:?}", data);
+                            log_list.push(data); 
                         },
-                    }
-                }
-
-                let read_data = latest_data.read().await.clone();
-                let log_list = logs.read().await.clone();
-                let connection_status = connected.read().await.clone();
-
-                if in_color_mode {
-                    let s = color_edit_styles.read().await.clone();
-                    draw_color_editor_mode(&mut term, &s);
-                    continue;
-                }
-
-                term.draw(|f| {
-                    let mut layout = Layout::default()
-                        .direction(Direction::Vertical)
-                        .constraints([Constraint::Percentage(100)])
-                        .split(f.size());
-
-                    if connection_status != ConnectionState::Connected
-                        && cfg.ui_conf.orb_connection_animation
-                    {
-                        draw_levi(f, layout[0]);
-                        return;
-                    }
-
-                    if cfg.ui_conf.logo_style != LogoStyle::Off {
-                        let max_w = LOGO_NEW.lines().fold(
-                            LOGO_NEW.lines().next().unwrap().chars().count(),
-                            |acc, x| {
-                                if x.chars().count() > acc {
-                                    x.chars().count()
-                                } else {
-                                    acc
-                                }
-                            },
-                        );
-
-                        let height = match cfg.ui_conf.logo_style {
-                            LogoStyle::Auto => {
-                                if layout[0].width as usize >= max_w {
-                                    LOGO_NEW.lines().count()
-                                } else {
-                                    LOGO_MINI.lines().count()
-                                }
+                        Ok(Message::Exit) => {
+                            disable_raw_mode().expect("I can't");
+                            execute!(
+                                term.backend_mut(),
+                                LeaveAlternateScreen,
+                                DisableMouseCapture
+                            )
+                            .expect("FUN");
+                            term.show_cursor().expect("NOO");
+                            break;
+                        }
+                        _ => {},
+                    },
+                    _elapsed = interval.tick() => {
+                        let ev_res = rx.try_recv();
+                        if ev_res.is_ok() {
+                            let ev = ev_res.unwrap();
+                            match ev {
+                                Event::Input(event) => match event.code {
+                                    KeyCode::Char('q') => {
+                                        disable_raw_mode().expect("I can't");
+                                        execute!(
+                                            term.backend_mut(),
+                                            LeaveAlternateScreen,
+                                            DisableMouseCapture
+                                        )
+                                        .expect("FUN");
+                                        term.show_cursor().expect("NOO");
+                                        let _ = state.msg_bus.0.send(Message::Exit);
+                                        break;
+                                    },
+                                    KeyCode::F(2) => {
+                                        extra_settings.draw_ui = !extra_settings.draw_ui;
+                                        let _ = term.clear();
+                                    },
+                                    KeyCode::F(3) => {
+                                        in_color_mode = !in_color_mode;
+                                    },
+                                    KeyCode::F(5) => {
+                                        extra_settings.homing_always_visible = !extra_settings.homing_always_visible;
+                                    },
+                                    KeyCode::F(4) => {
+                                        let _ = state.msg_bus.0.send(Message::HideWindow);
+                                    },
+                                    KeyCode::F(7) => {
+                                        let _ = state.msg_bus.0.send(Message::Log("Uploading Replay...".to_string()));
+                                        let _ = state.msg_bus.0.send(Message::UploadReplayBuffer);
+                                    },
+                                    KeyCode::F(8) => {
+                                        let replay = crate::websocket_server::get_replay_link("https://cdn.discordapp.com/attachments/287337352714518528/914003436771622932/retard_235.28-KyoZM-0adc9b9e.ddreplay").await.unwrap();
+                                        let _ = state.msg_bus.0.send(Message::Replay(Arc::new(replay)));
+                                    }
+                                    _ => {}
+                                },
                             }
-                            LogoStyle::Mini => LOGO_MINI.lines().count(),
-                            LogoStyle::Full => LOGO_NEW.lines().count(),
-                            LogoStyle::Off => 0,
-                        };
+                        }
+        
+                        if !extra_settings.draw_ui {
+                            continue;
+                        }
 
-                        layout = Layout::default()
-                            .direction(Direction::Vertical)
-                            .constraints([
-                                Constraint::Min(height as u16 + 1),
-                                Constraint::Percentage(100),
-                            ])
-                            .split(f.size());
-
-                        crate::ui::draw_logo(f, layout[0]);
+                        let ref read_data = state.last_poll;
+                        let ref connection_status = state.conn;
+        
+                        if in_color_mode {
+                            let s = (*state.color_edit).clone();
+                            draw_color_editor_mode(&mut term, &s);
+                            continue;
+                        }
+        
+                        term.draw(|f| {
+                            let mut layout = Layout::default()
+                                .direction(Direction::Vertical)
+                                .constraints([Constraint::Percentage(100)])
+                                .split(f.size());
+        
+                            if **connection_status != ConnectionState::Connected
+                                && cfg.ui_conf.orb_connection_animation
+                            {
+                                draw_levi(f, layout[0]);
+                                return;
+                            }
+        
+                            if cfg.ui_conf.logo_style != LogoStyle::Off {
+                                let max_w = LOGO_NEW.lines().fold(
+                                    LOGO_NEW.lines().next().unwrap().chars().count(),
+                                    |acc, x| {
+                                        if x.chars().count() > acc {
+                                            x.chars().count()
+                                        } else {
+                                            acc
+                                        }
+                                    },
+                                );
+        
+                                let height = match cfg.ui_conf.logo_style {
+                                    LogoStyle::Auto => {
+                                        if layout[0].width as usize >= max_w {
+                                            LOGO_NEW.lines().count()
+                                        } else {
+                                            LOGO_MINI.lines().count()
+                                        }
+                                    }
+                                    LogoStyle::Mini => LOGO_MINI.lines().count(),
+                                    LogoStyle::Full => LOGO_NEW.lines().count(),
+                                    LogoStyle::Off => 0,
+                                };
+        
+                                layout = Layout::default()
+                                    .direction(Direction::Vertical)
+                                    .constraints([
+                                        Constraint::Min(height as u16 + 1),
+                                        Constraint::Percentage(100),
+                                    ])
+                                    .split(f.size());
+        
+                                crate::ui::draw_logo(f, layout[0]);
+                            }
+        
+                            let mut info = Layout::default()
+                                .direction(Direction::Horizontal)
+                                .constraints([Constraint::Percentage(100)])
+                                .horizontal_margin(0)
+                                .vertical_margin(0)
+                                .split(layout[layout.len() - 1]);
+        
+                            if !cfg.ui_conf.hide_logs {
+                                info = Layout::default()
+                                    .direction(Direction::Horizontal)
+                                    .constraints([Constraint::Min(21), Constraint::Percentage(100)])
+                                    .horizontal_margin(0)
+                                    .vertical_margin(0)
+                                    .split(layout[layout.len() - 1]);
+        
+                                crate::ui::draw_logs(f, info[0], &log_list);
+                            }
+        
+                            crate::ui::draw_info_table(
+                                f,
+                                info[info.len() - 1],
+                                &read_data,
+                                &extra_settings,
+                            );
+                        })
+                        .unwrap();
                     }
-
-                    let mut info = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Percentage(100)])
-                        .horizontal_margin(0)
-                        .vertical_margin(0)
-                        .split(layout[layout.len() - 1]);
-
-                    if !cfg.ui_conf.hide_logs {
-                        info = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints([Constraint::Min(20), Constraint::Percentage(100)])
-                            .horizontal_margin(0)
-                            .vertical_margin(0)
-                            .split(layout[layout.len() - 1]);
-
-                        crate::ui::draw_logs(f, info[0], &log_list);
-                    }
-
-                    crate::ui::draw_info_table(
-                        f,
-                        info[info.len() - 1],
-                        &read_data,
-                        &extra_settings,
-                    );
-                })
-                .unwrap();
+                }
             }
         });
     }
@@ -323,6 +357,7 @@ where
 {
     let levi = LeviRipple {
         start_time: Instant::now(),
+        ms_count: 0,
     };
 
     f.render_widget(levi, area);
@@ -332,7 +367,7 @@ pub fn draw_logo<B>(f: &mut Frame<B>, area: Rect)
 where
     B: Backend,
 {
-    let cfg = &config::CONFIG;
+    let cfg = config::cfg();
 
     let max_w = LOGO_NEW.lines().fold(
         LOGO_NEW.lines().next().unwrap().chars().count(),
@@ -366,7 +401,7 @@ pub fn draw_logo_color_editor<B>(f: &mut Frame<B>, area: Rect, styles: &crate::c
 where
     B: Backend,
 {
-    let cfg = &config::CONFIG;
+    let cfg = config::cfg();
 
     let max_w = LOGO_NEW.lines().fold(
         LOGO_NEW.lines().next().unwrap().chars().count(),
@@ -469,7 +504,7 @@ pub fn draw_logs<B>(f: &mut Frame<B>, area: Rect, logs: &Vec<String>)
 where
     B: Backend,
 {
-    let cfg = &config::CONFIG;
+    let cfg = config::cfg();
     let log_size = if logs.len() > ((area.height - 2) as usize) {
         logs.len() + 2 - area.height as usize
     } else {
@@ -658,7 +693,7 @@ fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
             Row::new(["ACCURACY".into(), format!("{:.2}% {}", acc * 100., pacifist)]).style(normal_style)
         ];
     }
-    vec![Row::new(["ACCURACY", "100.00% [PACIFIST]"]).style(normal_style)]
+    vec![Row::new(["ACCURACY", "0.00% [PACIFIST]"]).style(normal_style)]
 }
 
 #[rustfmt::skip] #[allow(unreachable_patterns)]
@@ -698,7 +733,7 @@ fn create_collection_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
             Row::new(["COLLECTION ACC".into(), format!("{:.2}%", acc * 100.)]).style(normal_style),
         ];
     }
-    vec![Row::new(["COLLECTION ACC", "100.00%"]).style(normal_style)]
+    vec![Row::new(["COLLECTION ACC", "0.00%"]).style(normal_style)]
 }
 
 fn create_homing_splits_rows(
@@ -774,7 +809,7 @@ fn create_daggers_eaten_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
 }
 
 fn ddcl_warning_rows(_data: &StatsBlockWithFrames) -> Vec<Row> {
-    let normal_style = Style::default().fg(Color::White);
+    let _normal_style = Style::default().fg(Color::White);
     return vec![];
     /*vec![Row::new([
         String::from("DDCL WARN"),
@@ -785,6 +820,7 @@ fn ddcl_warning_rows(_data: &StatsBlockWithFrames) -> Vec<Row> {
 
 pub struct LeviRipple {
     pub start_time: Instant,
+    pub ms_count: u64,
 }
 
 const TERM_COLOR_RAMP: &str = " .:-=+*#%@█";
@@ -827,7 +863,7 @@ fn buffer_as_lines(buf: &Buffer, area: &Rect) -> Vec<String> {
 
 impl<'a> Widget for GameDataColorizer {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let cfg = &config::CONFIG;
+        let cfg = config::cfg();
 
         let mut split_name_style = cfg.ui_conf.style.split_name;
         let mut split_pos_style = cfg.ui_conf.style.split_diff_pos;
@@ -883,18 +919,18 @@ impl<'a> Widget for GameDataColorizer {
 impl<'a> Widget for LeviRipple {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let lev = LEVI.with(|z| z.clone());
-        let time_elapsed = lev.start_time.elapsed().div_f32(200.);
+        let time_elapsed = lev.start_time.elapsed();
         // Different Messages so it can always be centered
         let msg1 = "Waiting for Devil Daggers";
         let msg2 = "Waiting for Game";
         let mut tmp = [0; 4];
+        let precalc = (time_elapsed.as_millis() / 200) as f32;
+        let mut slp = 0;
         for y in 0..area.height {
             for x in 0..area.width {
                 let map_x = -((area.width as f32 - x as f32) - (area.width as f32 / 2.));
                 let map_y = (area.height as f32 - y as f32) - (area.height as f32 / 2.);
-                let height = (((map_x * map_x + map_y * map_y).sqrt() / 5.)
-                    - time_elapsed.as_millis() as f32)
-                    .sin();
+                let height = (((map_x * map_x + map_y * map_y).sqrt() - precalc) / 8.).sin();
                 let height = (height * (255. / 2.)) + (255. / 2.);
                 let height = height.clamp(20., 255.);
                 buf.get_mut(x, y)
@@ -903,8 +939,11 @@ impl<'a> Widget for LeviRipple {
                         height as u8,
                         0,
                         0,
-                    )));
+                    )
+                ));
             }
+            slp += 1;
+            if slp % 5 == 0 { std::thread::sleep(Duration::from_nanos(1)); }
         }
 
         let msg;

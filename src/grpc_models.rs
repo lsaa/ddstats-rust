@@ -30,7 +30,6 @@ impl StatsFrame {
 
 impl SubmitGameRequest {
     pub fn from_compiled_run(other: crate::client::CompiledRun) -> Self {
-        log::info!("{:?}", other);
         Self {
             version: other.version.clone(),
             player_id: other.player_id.clone(),

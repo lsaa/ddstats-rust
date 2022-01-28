@@ -3,6 +3,7 @@
 //
 
 use crate::consts::*;
+use crate::threads::{State, AAS, Message};
 use ddcore_rs::ddinfo;
 use ddcore_rs::ddinfo::ddcl_submit::DdclSecrets;
 use ddcore_rs::memory::{ConnectionParams, GameConnection, MemoryOverride, OperatingSystem};
@@ -10,12 +11,9 @@ use ddcore_rs::models::{GameStatus, StatsBlockWithFrames, StatsFrame};
 use num_traits::FromPrimitive;
 use serde::Serialize;
 use tokio::sync::OnceCell;
-use tokio::sync::mpsc::Receiver;
 use std::sync::Arc;
-use std::task::Poll;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{mpsc::Sender, RwLock};
-use tokio::time::{self, timeout};
+use tokio::time::{self};
 
 static MARKER_ADDR: OnceCell<usize> = OnceCell::const_new();
 
@@ -32,28 +30,23 @@ impl std::default::Default for ConnectionState {
     }
 }
 
-pub struct ClientSharedState {
-    pub log_sender: Sender<String>,
-    pub connection_sender: Arc<RwLock<ConnectionState>>,
-    pub sge_sender: Sender<SubmitGameEvent>,
-    pub last_poll: Arc<RwLock<StatsBlockWithFrames>>,
-    pub snowflake: Arc<RwLock<u128>>,
-    pub replay_request: Receiver<Vec<u8>>,
-}
-
 pub struct GamePollClient {
     pub connection: GameConnection,
     pub connection_state: ConnectionState,
     pub submitted_data: bool,
-    pub state: ClientSharedState,
+    pub state: AAS<State>,
     pub connecting_start: Instant,
+    pub last_connection_attempt: Instant,
     pub last_game_state: GameStatus,
+    pub replay_request: Option<Arc<Vec<u8>>>,
+    pub upload_replay_flag: bool,
 }
 
 impl GamePollClient {
-    pub async fn init(state: ClientSharedState) {
+    pub async fn init(state: AAS<State>) {
         tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_secs_f32(1. / 36.));
+            let mut msg_bus = state.load().msg_bus.0.subscribe();
             let mut c = Self {
                 state,
                 connection: GameConnection::dead_connection(),
@@ -61,11 +54,41 @@ impl GamePollClient {
                 connecting_start: Instant::now(),
                 connection_state: ConnectionState::NotConnected,
                 last_game_state: GameStatus::Menu,
+                replay_request: None,
+                last_connection_attempt: Instant::now() - Duration::from_secs(10),
+                upload_replay_flag: false
             };
 
             loop {
-                interval.tick().await;
-                c.tick().await;
+                tokio::select! {
+                    msg = msg_bus.recv() => match msg {
+                        Ok(Message::Replay(data)) => {
+                            c.replay_request = Some(data);
+                        },
+                        Ok(Message::UploadReplayBuffer) => {
+                            c.upload_replay_flag = true;
+                        },
+                        Ok(Message::UploadReplayData(data)) => {
+                            let snd_msg = c.state.load().msg_bus.0.clone();
+                            let _ = snd_msg.send(Message::Log("Uploading Replay...".to_string()));
+                            tokio::spawn(async move {
+                                match ddcore_rs::ddreplay::upload_replay(data).await {
+                                    Ok(_) => {
+                                        let _ = snd_msg.send(Message::Log("Replay Uploaded".to_string()));
+                                    },
+                                    Err(e) => {
+                                        let _ = snd_msg.send(Message::Log("Replay Exists".to_string()));
+                                        log::info!("Failed replay upload: {:?}", e);
+                                    }
+                                }
+                            });
+                        },
+                        _ => {},
+                    },
+                    _elapsed = interval.tick() => {
+                        c.tick().await;
+                    }
+                }
             }
         });
     }
@@ -79,6 +102,12 @@ impl GamePollClient {
     }
 
     async fn not_connected(&mut self) {
+        if Instant::now().duration_since(self.last_connection_attempt) < Duration::from_secs(5) {
+            return;
+        }
+
+        self.last_connection_attempt = Instant::now();
+
         let cfg = crate::config::cfg();
         let os = if cfg.use_linux_proton {
             OperatingSystem::LinuxProton
@@ -98,12 +127,16 @@ impl GamePollClient {
             overrides: MemoryOverride {
                 process_name: cfg.process_name_override.clone(),
                 block_marker: Some(MARKER_ADDR.get_or_init(|| { async {
+                    return crate::consts::LINUX_BLOCK_START;
                     if cfg.block_marker_override.is_some() {
                         return cfg.block_marker_override.unwrap().clone();
                     }
 
                     if let Ok(marker_response) = ddcore_rs::ddinfo::get_ddstats_memory_marker(ddinfo::get_os()).await {
+                        log::info!("Got marker from ddinfo");
                         return marker_response.value.clone();
+                    } else {
+                        log::warn!("failed to load marker from ddinfo, using backup");
                     }
 
                     if cfg!(target_os = "winwdows") {
@@ -119,10 +152,10 @@ impl GamePollClient {
             self.connection_state = ConnectionState::Connecting;
             self.connection = new_connection;
             self.connecting_start = Instant::now();
-            *self.state.connection_sender.write().await = self.connection_state.clone();
+            let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connecting)));
+            log::info!("Connecting...");
         } else {
-            log::info!("{:?}", conn_res.err());
-            std::thread::sleep(Duration::from_secs(0));
+            //log::info!("{:?}", conn_res.err());
         }
     }
 
@@ -130,17 +163,15 @@ impl GamePollClient {
         if self.connecting_start.elapsed() > Duration::from_secs(3) {
             self.connection = GameConnection::dead_connection();
             self.connection_state = ConnectionState::NotConnected;
-            *self.state.connection_sender.write().await = self.connection_state.clone();
+            let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::NotConnected)));
         }
 
-        if let Ok(_) = self.connection.read_stats_block_with_frames() {
+        if let Ok(_) = self.connection.is_alive_res() {
             self.connection_state = ConnectionState::Connected;
-            self.state
-                .log_sender
-                .send("Game Connected!".to_owned())
-                .await
-                .expect("Poisoned Logs");
-            *self.state.connection_sender.write().await = self.connection_state.clone();
+            let _ = self.state.load().msg_bus.0.send(Message::Log(format!("Game Connected!")));
+            let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connected)));
+        } else {
+            log::info!("{:?}", self.connection.is_alive_res().err());
         }
     }
 
@@ -149,25 +180,26 @@ impl GamePollClient {
             return;
         }
 
+        let state = self.state.load();
+
         if let Ok(data) = self.connection.read_stats_block_with_frames() {
             if let Some(snowflake) = self.new_snowflake(&data).await {
-                self.state.snowflake.write().await.clone_from(&snowflake);
+                let _ = state.msg_bus.0.send(Message::NewSnowflake(Arc::new(snowflake)));
             }
 
-            let waker = futures::task::noop_waker();
-            let mut cx = std::task::Context::from_waker(&waker);
-            if let Poll::Ready(Some(replay)) = self.state.replay_request.poll_recv(&mut cx) {
-                let res = self.connection.play_replay(replay);
-                if res.is_ok() {
-                    self.connection.maximize_dd();
+            if self.replay_request.is_some() {
+                let taken = self.replay_request.as_ref().unwrap();
+                match self.connection.play_replay(taken.clone()) {
+                    Ok(_) => self.connection.maximize_dd(),
+                    Err(e) =>  log::info!("failed to load replay: {}", e)
                 }
+                self.replay_request = None;
             }
 
             if data.frames.last().is_none() {
                 return;
             }
 
-            let last = data.frames.last().unwrap();
             let status: GameStatus = data.block.status();
             let old = self.last_game_state;
 
@@ -175,35 +207,54 @@ impl GamePollClient {
                 self.submitted_data = false;
             }
 
+            let data = Arc::new(data);
+            let data_clone = data.clone();
+
+            if self.upload_replay_flag {
+                if let Ok(replay) = self.connection.replay_bin() {
+                    let msg_bus = state.msg_bus.0.clone();
+                    tokio::spawn(async move {
+                        match ddcore_rs::ddreplay::upload_replay(Arc::new(replay)).await {
+                            Ok(_) => {
+                                let _ = msg_bus.send(Message::Log("Replay Uploaded".to_string()));
+                            },
+                            Err(e) => {
+                                let _ = msg_bus.send(Message::Log("Replay Exists".to_string()));
+                                log::info!("Failed replay upload: {e:?}");
+                            }
+                        }
+                    });
+                } else {
+                    let _ = state.msg_bus.0.send(Message::Log("Replay Rejected".to_string()));
+                }
+                self.upload_replay_flag = false;
+            }
+
             if self.should_submit(&data, &status) {
                 log::info!("Attempting to submit run");
-                let to_submit = GamePollClient::create_submit_event(&data, &last, self.state.snowflake.read().await.clone());
-                self.submit_retry_until_success(to_submit).await;
-                let c = data.clone();
-                log::info!("{}", data.block.replay_buffer_length);
                 if let Ok(replay) = self.connection.replay_bin() {
-                    if c.block.status == 3 || c.block.status == 4 || c.block.status == 5 {
+                    let repl = Arc::new(replay);
+                    let to_submit = GamePollClient::create_submit_event(&data, &data.frames.last().unwrap(), *state.snowflake, &repl);
+                    let _ = state.msg_bus.0.send(Message::SubmitGame(Arc::new(to_submit)));
+                    self.submitted_data = true;
+                    if data.block.status == 3 || data.block.status == 4 || data.block.status == 5 {
                         tokio::spawn(async move {
-                            let _res = ddinfo::ddcl_submit::submit(&c, ddcl_secrets(), "ddstats-rust", "0.6.9.1", replay).await;
+                            let _res = ddinfo::ddcl_submit::submit(data_clone, ddcl_secrets(), "ddstats-rust", "0.6.10.1", repl).await;
                         });
                     }
                 }
-                self.submitted_data = true;
             }
 
             self.last_game_state = status;
-            let writer = timeout(Duration::from_secs_f32(1./120.), self.state.last_poll.write()).await;
-            if let Ok(mut writer) = writer {
-                writer.clone_from(&data);
-            }
+            let _ = state.msg_bus.0.send(Message::NewGameData(data));
         }
     }
 
     async fn new_snowflake(&mut self, data: &StatsBlockWithFrames) -> Option<u128> {
+        let state = self.state.load();
         let status: GameStatus = FromPrimitive::from_i32(data.block.status).unwrap();
         let old = self.last_game_state;
         let snowflake = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-        let current = *self.state.snowflake.read().await;
 
         if old != GameStatus::OtherReplay && status == GameStatus::OtherReplay {
             return Some(snowflake);
@@ -222,10 +273,10 @@ impl GamePollClient {
         }
 
         if old == GameStatus::Playing && status == GameStatus::Playing {
-            if current > snowflake {
+            if *state.snowflake > snowflake {
                 return Some(snowflake);
             }
-            if (snowflake - current) > (data.block.time * 1100.) as u128 {
+            if (snowflake - *state.snowflake) > (data.block.time * 1100.) as u128 {
                 return Some(snowflake);
             }
         }
@@ -233,17 +284,8 @@ impl GamePollClient {
         None
     }
 
-    async fn submit_retry_until_success(&mut self, event: SubmitGameEvent) {
-        let mut res = self.state.sge_sender.send(event.clone()).await;
-        loop {
-            if res.is_ok() {
-                break;
-            }
-            res = self.state.sge_sender.send(event.clone()).await;
-        }
-    }
 
-    fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame, snowflake: u128) -> SubmitGameEvent {
+    fn create_submit_event(data: &StatsBlockWithFrames, last: &StatsFrame, snowflake: u128, replay: &Arc<Vec<u8>>) -> SubmitGameEvent {
         let mut player_id = data.block.player_id;
         let replay_player_id;
 
@@ -286,7 +328,7 @@ impl GamePollClient {
             level_gems: last.level_gems,
             homing_daggers: last.homing,
             stats: data.frames.clone(),
-        }, snowflake.clone())
+        }, snowflake.clone(), replay.clone())
     }
 
     #[rustfmt::skip]
@@ -297,7 +339,8 @@ impl GamePollClient {
         && !self.submitted_data
         && (status == GameStatus::Dead
         || status == GameStatus::OtherReplay
-        || status == GameStatus::OwnReplayFromLeaderboard)
+        || status == GameStatus::OwnReplayFromLeaderboard
+        || status == GameStatus::LocalReplay)
     }
 
     #[rustfmt::skip]
@@ -308,14 +351,16 @@ impl GamePollClient {
         status == GameStatus::Playing
         || (old != GameStatus::OtherReplay && status == GameStatus::OtherReplay)
         || (old != GameStatus::OwnReplayFromLeaderboard && status == GameStatus::OwnReplayFromLeaderboard)
+        || (old != GameStatus::LocalReplay && status == GameStatus::LocalReplay)
     }
 
     async fn resolve_connection(&mut self) -> bool {
         if let Err(e) = self.connection.is_alive_res() {
             log::warn!("Disconnected: {:?}", e);
-            log::info!("{:?}", self.connection.last_fetch);
+            log::info!("Connection Base Addr: {:?} | PID: {}", self.connection.base_address, self.connection.pid);
             self.connection_state = ConnectionState::NotConnected;
-            *self.state.connection_sender.write().await = self.connection_state.clone();
+            let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::NotConnected)));
+            let _ = self.state.load().msg_bus.0.send(Message::Log("Disconnected".to_string()));
             return false;
         }
         return true;
@@ -366,5 +411,5 @@ fn ddcl_secrets() -> Option<DdclSecrets> {
 }
 
 #[derive(Clone)]
-pub struct SubmitGameEvent(pub CompiledRun, pub u128);
+pub struct SubmitGameEvent(pub CompiledRun, pub u128, pub Arc<Vec<u8>>);
 

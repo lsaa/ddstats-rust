@@ -7,6 +7,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
+use arc_swap::Guard;
 use lazy_static::lazy_static;
 use ron::de::from_reader;
 use ron::de::from_str;
@@ -15,89 +17,16 @@ use tui::style::Color;
 use tui::style::Style;
 
 use crate::consts::LOGO_NEW;
+use crate::threads::AAS;
 use crate::ui::GameDataModules;
 
-const DEFAULT_CFG: &str = "// ddstats-rust config
+const DEFAULT_CFG: &str = include_str!("../default_cfg.ron");
 
-(
-    offline: true,
-    debug_logs: false,
-    host: \"https://ddstats.com\",
-    auto_clipboard: true,
-    stream: (
-        stats: false,
-        replay_stats: false,
-        non_default_spawnsets: false,
-    ),
-    submit: (
-        stats: false,
-        replay_stats: false,
-        non_default_spawnsets: false,
-    ),
-    discord: (
-        notify_above_1000: true,
-        notify_player_best: true,
-        notify_custom_spawnsets: false,
-    ),
+lazy_static! {
+    pub static ref CONFIG: AAS<DDStatsRustConfig> = Arc::new(ArcSwap::from_pointee(get_config()));
+}
 
-    // UI Config
-    ui_conf: (
-        hide_logo: false,
-        hide_logs: false,
-        orb_connection_animation: true,
-        style: (
-            logo:               (fg: Some(Red), bg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            logs:               (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            log_text:           (fg: Some(White), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            most_recent_log:    (bg: Some(White), fg: Some(Black), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            game_data:          (bg: Some(Black), fg: Some(White), add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_name:         (fg: Some(Yellow), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_value:        (fg: Some(Magenta), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_diff_pos:     (fg: Some(Green), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0)),
-            split_diff_neg:     (fg: Some(Red), bg: None, add_modifier: (bits: 0), sub_modifier: (bits: 0))
-        ),
-        game_data_modules: [
-            RunData,
-            Timer,
-            Gems,
-            Homing(true),
-            Kills,
-            Accuracy,
-            GemsLost(true),
-            CollectionAccuracy,
-            HomingUsed,
-            Spacing,
-            HomingSplits([
-                (\"Levi\", 366.),
-                // (\"490\", 490.),
-                // (\"580\", 580.),
-                (\"700\", 709.),
-                (\"800\", 800.),
-                (\"860\", 875.),
-                (\"940\", 942.),
-                (\"1000\", 996.),
-                (\"1040\", 1047.),
-                (\"1080\", 1091.),
-                (\"1130\", 1133.),
-                (\"1160\", 1163.),
-            ]),
-        ],
-        logo: \"
-
-████████▄  ████████▄     ▄████████     ███        ▄████████     ███        ▄████████
-███   ▀███ ███   ▀███   ███    ███ ▀█████████▄   ███    ███ ▀█████████▄   ███    ███
-███    ███ ███    ███   ███    █▀     ▀███▀▀██   ███    ███    ▀███▀▀██   ███    █▀⠀
-███    ███ ███    ███   ███            ███   ▀   ███    ███     ███   ▀   ███⠀⠀⠀⠀⠀⠀⠀
-███    ███ ███    ███ ▀███████████     ███     ▀███████████     ███     ▀███████████
-███    ███ ███    ███          ███     ███       ███    ███     ███              ███
-███   ▄███ ███   ▄███    ▄█    ███     ███       ███    ███     ███        ▄█    ███
-████████▀  ████████▀   ▄████████▀     ▄████▀     ███    █▀     ▄████▀    ▄████████▀⠀
-v0.6.9                                                                          rust\",
-    ),
-
-)";
-
-#[derive(Deserialize, serde::Serialize)]
+#[derive(Deserialize, serde::Serialize, Clone)]
 pub struct UiConf {
     pub enabled: bool,
     pub logo_style: LogoStyle,
@@ -110,10 +39,10 @@ pub struct UiConf {
     pub column_distance: u16,
 }
 
-#[derive(Deserialize, serde::Serialize)]
+#[derive(Deserialize, serde::Serialize, Clone)]
 pub struct Logo(pub String);
 
-#[derive(Deserialize, PartialEq, serde::Serialize)]
+#[derive(Deserialize, PartialEq, serde::Serialize, Clone)]
 pub enum LogoStyle {
     Auto,
     Mini,
@@ -156,7 +85,7 @@ impl std::default::Default for Styles {
     }
 }
 
-#[derive(Deserialize, serde::Serialize)]
+#[derive(Deserialize, serde::Serialize, Clone)]
 pub struct DDStatsRustConfig {
     pub host: String,
     pub grpc_host: String,
@@ -169,7 +98,12 @@ pub struct DDStatsRustConfig {
     pub ui_conf: UiConf,
     pub linux_restart_as_child: bool,
     pub use_linux_proton: bool,
-    pub ddcl: Ddcl,
+    #[serde(default)]
+    pub tray_icon: bool,
+    #[serde(default)]
+    pub hide_window_on_start: bool,
+    #[serde(default)]
+    pub upload_replays_automatically: bool,
     #[serde(default)]
     pub block_marker_override: Option<usize>,
     #[serde(default)]
@@ -177,44 +111,27 @@ pub struct DDStatsRustConfig {
     pub open_game_on_replay_request: bool,
 }
 
-#[derive(Deserialize, serde::Serialize)]
+#[derive(Deserialize, serde::Serialize, Clone)]
 pub struct Stream {
     pub stats: bool,
     pub replay_stats: bool,
     pub non_default_spawnsets: bool,
 }
 
-#[derive(Deserialize, serde::Serialize)]
+#[derive(Deserialize, serde::Serialize, Clone)]
 pub struct Submit {
     pub stats: bool,
     pub replay_stats: bool,
     pub non_default_spawnsets: bool,
+    #[serde(default)]
+    pub ddcl: bool,
 }
 
-#[derive(Deserialize, serde::Serialize)]
+#[derive(Deserialize, serde::Serialize, Clone)]
 pub struct Discord {
     pub notify_above_1000: bool,
     pub notify_player_best: bool,
     pub notify_custom_spawnsets: bool,
-}
-
-#[derive(Deserialize, serde::Serialize)]
-pub struct Ddcl {
-    pub submit: bool,
-    pub replays: bool,
-}
-
-impl std::default::Default for Ddcl {
-    fn default() -> Self {
-        Self {
-            submit: true,
-            replays: true,
-        }
-    }
-}
-
-lazy_static! {
-    pub static ref CONFIG: Arc<DDStatsRustConfig> = Arc::new(get_config());
 }
 
 #[cfg(target_os = "linux")]
@@ -274,7 +191,7 @@ fn get_config() -> DDStatsRustConfig {
         }
     }
 
-    from_str(DEFAULT_CFG).expect("FUN")
+    from_str(DEFAULT_CFG).expect("Invalid config")
 }
 
 #[cfg(target_os = "windows")]
@@ -287,6 +204,6 @@ fn default_cfg_locate() -> Option<PathBuf> {
     Some(PathBuf::from("/usr/share/doc/ddstats-rust/default_cfg.ron"))
 }
 
-pub fn cfg<'a>() -> Arc<DDStatsRustConfig> {
-    CONFIG.clone()
+pub fn cfg<'a>() -> Guard<Arc<DDStatsRustConfig>> {
+    CONFIG.load()
 }
