@@ -127,7 +127,6 @@ impl GamePollClient {
             overrides: MemoryOverride {
                 process_name: cfg.process_name_override.clone(),
                 block_marker: Some(MARKER_ADDR.get_or_init(|| { async {
-                    return crate::consts::LINUX_BLOCK_START;
                     if cfg.block_marker_override.is_some() {
                         return cfg.block_marker_override.unwrap().clone();
                     }
