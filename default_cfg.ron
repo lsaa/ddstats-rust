@@ -1,7 +1,7 @@
 /*
 ddstats-rust config
     Optional configurations:
-        - ui_conf.logo: (String)
+        ui_conf.logo: (String)
 
 || Game Data Modules:
     RunData
@@ -45,13 +45,9 @@ ddstats-rust config
     top of the window and changing CMD preferences.
 
     On linux it just pulls from your terminal colors, probably in .Xdefaults
-
-Breaking Changes:
-    -> ui_conf.column_distance is now necessary (2021-09-19)
-
 */
 
-(
+DDStatsRustConfig_v1_0_0((
     offline: false,
     debug_logs: true,
     host: "https://ddstats.com",
@@ -86,17 +82,26 @@ Breaking Changes:
         logo_style: Auto, // Off, Auto, Full, Mini
         hide_logs: false,
         orb_connection_animation: true,
-        column_distance: 30,
-        style: (
-            logo:               (bg: Some(Black), fg: Some(Red),     add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            logs:               (bg: Some(Black), fg: Some(White),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            log_text:           (bg: None,        fg: Some(White),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            most_recent_log:    (bg: Some(White), fg: Some(Black),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            game_data:          (bg: Some(Black), fg: Some(White),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            split_name:         (bg: None,        fg: Some(Yellow),  add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            split_value:        (bg: None,        fg: Some(Magenta), add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            split_diff_pos:     (bg: None,        fg: Some(Green),   add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
-            split_diff_neg:     (bg: None,        fg: Some(Red),     add_modifier: (bits: 0b0000_0000_0000), sub_modifier: (bits: 0b0000_0000_0000)),
+        column_distance: 30, // Percentage
+        show_help_on_border: true, // ┤ [F4] Help ├
+        current_split_marker: "←",
+        theming: (
+            styles: (
+                text:               (bg: None,        fg: Some(DarkGray),add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                accent:             (bg: None,        fg: Some(White),   add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                logo:               (bg: Some(Black), fg: Some(Red),     add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                logs:               (bg: Some(Black), fg: Some(Gray),    add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                logs_title:         (bg: None,        fg: Some(White),   add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                log_text:           (bg: None,        fg: Some(White),   add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                most_recent_log:    (bg: Some(White), fg: Some(Black),   add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                game_data:          (bg: Some(Black), fg: Some(Gray),    add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                game_data_title:    (bg: Some(Black), fg: Some(White),   add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                split_name:         (bg: None,        fg: Some(Yellow),  add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                split_diff_pos:     (bg: None,        fg: Some(Green),   add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                split_diff_neg:     (bg: None,        fg: Some(Red),     add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                split_diff_neutral: (bg: None,        fg: Some(Gray),    add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+                split_diff_gold:    (bg: None,        fg: Some(Yellow),  add_modifier: (bits: 0), sub_modifier: (bits: 0)),
+            )
         ),
         game_data_modules: [
             RunData,
@@ -108,21 +113,20 @@ Breaking Changes:
             CollectionAccuracy,
             HomingUsed,
             Spacing,
-            HomingSplits([ // (name, time)
-                ("Levi", 366.),
-                // ("490", 490.),
-                // ("580", 580.),
-                ("700", 709.),
-                ("800", 800.),
-                ("880", 875.),
-                ("940", 942.),
-                ("1000", 996.),
-                ("1040", 1047.),
-                ("1080", 1091.),
-                ("1130", 1133.),
-                ("1160", 1163.),
+            HomingSplits([ // (name, time, offset, positive threshold, neutral zone, golden split ( example: Some(300) ))
+                ("LEVI", 366., -105, 0, 5, None),
+                // ("490", 490., 0, 0, 5, None),
+                // ("580", 580., 0, 0, 5, None),
+                ("700", 709., 0, 0, 5, None),
+                ("800", 800., 0, 0, 5, None),
+                ("880", 875., 0, 0, 5, None),
+                ("940", 942., 0, 0, 5, None),
+                ("1000", 996., 0, 0, 5, None),
+                ("1040", 1047., 0, 0, 5, None),
+                ("1080", 1091., 0, 0, 5, None),
+                ("1130", 1133., 0, 0, 5, None),
+                ("1160", 1163., 0, 0, 5, None),
             ]),
         ],
     ),
-
-)
+))

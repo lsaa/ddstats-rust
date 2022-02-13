@@ -6,6 +6,8 @@ pub const V3_SURVIVAL_HASH: &str = "569fead87abf4d30fdee4231a6398051";
 
 pub const VERSION: &str = "0.6.10";
 
+pub const INT_VER: u32 = 1;
+
 pub const LOGO_ALT: &str = "
 @@@@@@@   @@@@@@@    @@@@@@   @@@@@@@   @@@@@@   @@@@@@@   @@@@@@@
 @@@@@@@@  @@@@@@@@  @@@@@@@   @@@@@@@  @@@@@@@@  @@@@@@@  @@@@@@@
@@ -28,7 +30,7 @@ pub const LOGO_NEW: &str = "
 ███    ███ ███    ███          ███     ███       ███    ███     ███              ███
 ███   ▄███ ███   ▄███    ▄█    ███     ███       ███    ███     ███        ▄█    ███
 ████████▀  ████████▀   ▄████████▀     ▄████▀     ███    █▀     ▄████▀    ▄████████▀
-v0.6.10                                                                         rust";
+v1 [ Stable ]                                                                   rust";
 
 pub const LOGO_MINI: &str = "
 ____________  _____ _____ ___ _____ _____
@@ -69,4 +71,24 @@ pub const DEATH_TYPES: [&str; 17] = [
     "Discarnated",  // orb
     "Entangled",    // Replaced BARBED || thorn
     "Haunted",      // 3.1 ghost
+];
+
+pub const DEATH_TYPES_CAPS: [&str; 17] = [
+    "FALLEN",       // lol get rekt
+    "SWARMED",      // skull 1
+    "IMPALED",      // get real
+    "GORED",        // skull 3
+    "INFESTED",     // spiderling
+    "OPENED",       // skull 4
+    "PURGED",       // squid 1
+    "DESECRATED",   // squid 2
+    "SACRIFICED",   // squid 3
+    "EVISCERATED",  // centipide
+    "ANNIHILATED",  // gigapede
+    "INTOXICATED",  // 3.0 ghost || spider 1
+    "ENVENOMATED",  // spider 2
+    "INCARNATED",   // levi
+    "DISCARNATED",  // orb
+    "ENTANGLED",    // Replaced BARBED || thorn
+    "HAUNTED",      // 3.1 ghost
 ];

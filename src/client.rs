@@ -11,9 +11,11 @@ use ddcore_rs::models::{GameStatus, StatsBlockWithFrames, StatsFrame};
 use num_traits::FromPrimitive;
 use serde::Serialize;
 use tokio::sync::OnceCell;
+use std::fs::File;
+use std::io::Read;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::time::{self};
+use tokio::time;
 
 static MARKER_ADDR: OnceCell<usize> = OnceCell::const_new();
 
@@ -65,14 +67,20 @@ impl GamePollClient {
                         Ok(Message::Replay(data)) => {
                             c.replay_request = Some(data);
                         },
+                        Ok(Message::PlayReplayLocalFile(file_path)) => {
+                            log::info!("LOCAL FILE REPLAY RECV: {file_path}");
+                            if let Ok(replay_bin_from_file) = get_replay_file_content(file_path) {
+                                c.replay_request = Some(Arc::new(replay_bin_from_file));
+                            }
+                        },
                         Ok(Message::UploadReplayBuffer) => {
                             c.upload_replay_flag = true;
                         },
-                        Ok(Message::UploadReplayData(data)) => {
+                        Ok(Message::UploadReplayData(data, manual)) => {
                             let snd_msg = c.state.load().msg_bus.0.clone();
                             let _ = snd_msg.send(Message::Log("Uploading Replay...".to_string()));
                             tokio::spawn(async move {
-                                match ddcore_rs::ddreplay::upload_replay(data).await {
+                                match ddcore_rs::ddreplay::upload_replay(data, manual).await {
                                     Ok(_) => {
                                         let _ = snd_msg.send(Message::Log("Replay Uploaded".to_string()));
                                     },
@@ -130,7 +138,6 @@ impl GamePollClient {
                     if cfg.block_marker_override.is_some() {
                         return cfg.block_marker_override.unwrap().clone();
                     }
-
                     if let Ok(marker_response) = ddcore_rs::ddinfo::get_ddstats_memory_marker(ddinfo::get_os()).await {
                         log::info!("Got marker from ddinfo");
                         return marker_response.value.clone();
@@ -170,7 +177,7 @@ impl GamePollClient {
             let _ = self.state.load().msg_bus.0.send(Message::Log(format!("Game Connected!")));
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connected)));
         } else {
-            log::info!("{:?}", self.connection.is_alive_res().err());
+            log::info!("Conn Err: {:?}", self.connection.is_alive_res().err());
         }
     }
 
@@ -213,7 +220,7 @@ impl GamePollClient {
                 if let Ok(replay) = self.connection.replay_bin() {
                     let msg_bus = state.msg_bus.0.clone();
                     tokio::spawn(async move {
-                        match ddcore_rs::ddreplay::upload_replay(Arc::new(replay)).await {
+                        match ddcore_rs::ddreplay::upload_replay(Arc::new(replay), true).await {
                             Ok(_) => {
                                 let _ = msg_bus.send(Message::Log("Replay Uploaded".to_string()));
                             },
@@ -364,6 +371,13 @@ impl GamePollClient {
         }
         return true;
     }
+}
+
+fn get_replay_file_content(path: String) -> anyhow::Result<Vec<u8>> {
+    let mut f = File::open(path)?;
+    let mut res = vec![];
+    f.read_to_end(&mut res)?;
+    Ok(res)
 }
 
 #[derive(Debug, Clone, Default)]

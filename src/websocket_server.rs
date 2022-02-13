@@ -8,10 +8,9 @@ use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
 use hyper::client::HttpConnector;
 use hyper::{Body, Method, Request};
-use regex::{Match, Regex};
-use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Serialize, Deserialize};
-use serde_json::Value;
+use serde_json::{Value, json};
+use tui::style::Color;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
@@ -20,7 +19,6 @@ use std::sync::atomic::AtomicU64;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
-use tui::style::{Color, Style};
 use warp::sse::Event;
 use warp::{
     ws::{Message, WebSocket},
@@ -30,6 +28,7 @@ use warp::{
 use crate::client::ConnectionState;
 use crate::config::{Styles, CONFIG};
 use crate::threads::{AAS, State};
+use crate::ui::modules::GameDataModules;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WsBroadcast {
@@ -182,6 +181,11 @@ async fn handle_websocket_message(
         let _ = sender.send(Message::text(t)).await;
     }
 
+    if msg._type.eq("version") {
+        let t = format!("{{\"type\": \"version\", \"data\": {} }}", crate::consts::INT_VER);
+        let _ = sender.send(Message::text(t)).await;
+    }
+
     if msg._type.eq("ddcl_replay") {
         let id = msg.data.as_u64().unwrap_or(0) as i32;
         let cfg = crate::config::cfg();
@@ -225,15 +229,46 @@ async fn handle_websocket_message(
 
     if msg._type.eq("clr-set") {
         let styles: Result<Styles, serde_json::Error> = serde_json::from_str(&msg.data.to_string());
-        if styles.is_err() {
-            return;
+        match styles {
+            Ok(styles) => {
+                let mut c = (*CONFIG.load_full()).clone();
+                c.ui_conf.theming.styles = styles;
+                CONFIG.swap(Arc::new(c));
+                let bus_sender = state.msg_bus.0.clone();
+                let _ = bus_sender.send(crate::threads::Message::SaveCfg);
+                let t = format!("{{\"type\": \"color_set_ok\", \"data\": null }}");
+                let _ = sender.send(Message::text(t)).await;
+            },
+            Err(e) => {
+                let t = json!({
+                    "type": "color_set_err",
+                    "data": format!("{e:?}")
+                });
+                let _ = sender.send(Message::text(t.to_string())).await;
+            }
         }
-        let styles = styles.unwrap();
-        let mut c = (*CONFIG.load_full()).clone();
-        c.ui_conf.style = styles;
-        CONFIG.swap(Arc::new(c));
-        let t = format!("{{\"type\": \"color_set_ok\", \"data\": null }}");
-        let _ = sender.send(Message::text(t)).await;
+    }
+
+    if msg._type.eq("set-modules") {
+        let modules: Result<Vec<GameDataModules>, serde_json::Error> = serde_json::from_str(&msg.data.to_string());
+        match modules {
+            Ok(modules) => {
+                let mut c = (*CONFIG.load_full()).clone();
+                c.ui_conf.game_data_modules = modules;
+                CONFIG.swap(Arc::new(c));
+                let bus_sender = state.msg_bus.0.clone();
+                let _ = bus_sender.send(crate::threads::Message::SaveCfg);
+                let t = format!("{{\"type\": \"set_modules_ok\", \"data\": null }}");
+                let _ = sender.send(Message::text(t)).await;
+            },
+            Err(e) => {
+                let t = json!({
+                    "type": "set_modules_err",
+                    "data": format!("{e:?}")
+                });
+                let _ = sender.send(Message::text(t.to_string())).await;
+            }
+        }
     }
 
 }
@@ -265,19 +300,6 @@ impl FromStr for ColorProxy {
         }
     }
 }
-
-fn color_from_match(enum_type: Match, red: Match, green: Match, blue: Match) -> Color {
-    match enum_type.as_str() {
-        "Rgb" => Color::Rgb(
-            u8::from_str_radix(red.as_str(), 10).unwrap(),
-            u8::from_str_radix(green.as_str(), 10).unwrap(),
-            u8::from_str_radix(blue.as_str(), 10).unwrap(),
-        ),
-        "Indexed" => Color::Indexed(u8::from_str_radix(red.as_str(), 10).unwrap()),
-        v => ColorProxy::from_str(v).unwrap().0,
-    }
-}
-
 
 fn with_state_data(c: AAS<State>) -> impl Filter<Extract = (AAS<State>,), Error = Infallible> + Clone {
     warp::any().map(move || c.clone())

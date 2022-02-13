@@ -58,7 +58,7 @@ impl GameSubmissionClient {
                                 if let Ok(_) = ddcore_rs::ddreplay::create_ddstats_trace(game_id as u64, replay_hash).await  {
                                     log::info!("traced ddstats game: {}", game_id);
                                     if should_upload {
-                                        let _ = state.msg_bus.0.send(Message::UploadReplayData(data_arc));
+                                        let _ = state.msg_bus.0.send(Message::UploadReplayData(data_arc, false));
                                     }
                                 }
                             });
