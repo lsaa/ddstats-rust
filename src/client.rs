@@ -12,7 +12,6 @@ use num_traits::FromPrimitive;
 use serde::Serialize;
 use tokio::sync::OnceCell;
 use std::fs::File;
-use std::io::Read;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::time;
@@ -380,9 +379,7 @@ impl GamePollClient {
 
 fn get_replay_file_content(path: String) -> anyhow::Result<Vec<u8>> {
     let mut f = File::open(path)?;
-    let mut res = vec![];
-    f.read_to_end(&mut res)?;
-    Ok(res)
+    ddcore_rs::models::replay::DdRpl::validate_reader_output_bin(&mut f)
 }
 
 #[derive(Debug, Clone, Default)]

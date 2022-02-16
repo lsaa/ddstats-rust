@@ -50,7 +50,7 @@ impl UiThread {
     pub async fn init(state: AAS<State>) {
         let mut term = create_term();
         term.clear().expect("Couldn't clear terminal");
-        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 14.));
+        let mut interval = tokio::time::interval(Duration::from_secs_f32(1. / 12.));
         let mut log_list = vec![];
         tokio::spawn(async move {
             let mut extra_settings = ExtraSettings {
