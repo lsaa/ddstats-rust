@@ -2,7 +2,7 @@
 //  discord.rs -Rich Presence Thread
 //
 
-use std::{time::Duration};
+use std::time::Duration;
 use ddcore_rs::models::GameStatus;
 use discord_rich_presence::{new_client, activity::{self, Assets}, DiscordIpc};
 use lazy_static::lazy_static;
@@ -26,7 +26,7 @@ impl RichPresenceClient {
             loop {
                 looper.tick().await;
                 let state = state.load();
-                let ref game_data = state.last_poll;
+                let game_data = &state.last_poll;
 
                 if !PLAYER_LB_DATA.initialized() && *state.conn == ConnectionState::Connected && tries < 15 && game_data.block.player_id != 0 {
                     tries += 1;
@@ -53,20 +53,16 @@ impl RichPresenceClient {
                     }
                 }
 
-                if !is_rpc_connected && *state.conn == ConnectionState::Connected {
-                    if client.connect().is_ok() {
-                        is_rpc_connected = true;
-                        log::info!("Connected discord rich presence");
-                        continue;
-                    }
+                if !is_rpc_connected && *state.conn == ConnectionState::Connected && client.connect().is_ok()  {
+                     is_rpc_connected = true;
+                    log::info!("Connected discord rich presence");
+                    continue;
                 }
 
-                if is_rpc_connected && *state.conn != ConnectionState::Connected {
-                    if client.close().is_ok() {
-                        is_rpc_connected = false;
-                        log::info!("Disconnected discord rich presence");
-                        continue;
-                    }
+                if is_rpc_connected && *state.conn != ConnectionState::Connected && client.connect().is_ok() {
+                    is_rpc_connected = false;
+                    log::info!("Disconnected discord rich presence");
+                    continue;
                 }
 
                 if !is_rpc_connected { continue; }

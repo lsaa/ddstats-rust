@@ -53,13 +53,13 @@ DDStatsRustConfig_v1_0_0((
     host: "https://ddstats.com",
     grpc_host: "http://172.104.11.117:80",
     auto_clipboard: true,
-    linux_restart_as_child: true,
+    linux_restart_as_child: false,
     use_linux_proton: false,
     process_name_override: None,
     block_marker_override: None,
     open_game_on_replay_request: true,
     upload_replays_automatically: true,
-    tray_icon: false,
+    tray_icon: true,
     hide_window_on_start: false,
     stream: (
         stats: true,
@@ -106,12 +106,14 @@ DDStatsRustConfig_v1_0_0((
         game_data_modules: [
             RunData,
             Timer,
-            Gems,
-            Accuracy,
             Homing(Compact), // Minimal, Compact, Full
             GemsLost(Full), // Minimal, Compact, Full
-            CollectionAccuracy,
             HomingUsed,
+            Gems,
+            Spacing,
+            Accuracy,
+            CollectionAccuracy,
+            FarmEfficiency,
             Spacing,
             HomingSplits([ // (name, time, offset, positive threshold, neutral zone, golden split ( example: Some(300) ))
                 ("LEVI", 366., -105, 0, 5, None),

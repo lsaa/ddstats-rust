@@ -21,6 +21,7 @@ pub enum GameDataModules {
     HomingSplits(Vec<(String, f32, i32, i32, u32, Option<i32>)>), // (Name, Time, Offset, Positive threshold, Neutral zone, Golden Split)
     HomingUsed,
     DaggersEaten,
+    FarmEfficiency,
     Spacing,
 }
 
@@ -39,6 +40,7 @@ impl<'a> GameDataModules {
             GameDataModules::HomingSplits(times) => create_homing_splits_rows(&data, times.clone(), extra.clone()),
             GameDataModules::HomingUsed => create_homing_used_rows(&data),
             GameDataModules::DaggersEaten => create_daggers_eaten_rows(&data),
+            GameDataModules::FarmEfficiency => create_farm_efficiency_rows(&data),
             GameDataModules::Spacing | _ => vec![Row::new([""])],
         }
     }
@@ -339,7 +341,8 @@ fn create_homing_splits_rows(
         };
 
         Some(Row::new([Spans::from(vec![Span::styled(split_text, styles.text)]), Spans::from(vec![
-            Span::styled(format!("{:>4}: ", name), styles.text),
+            Span::styled(format!("{:>4}", name), if i == current_split_idx && !data.block.is_replay { styles.accent } else { styles.text }),
+            Span::styled(format!(": "), styles.text),
             Span::styled(format!("{:>4}", hom), styles.accent),
             Span::styled(" (", styles.text),
             Span::styled(format!("{:<+4}", diff), split_style),
@@ -365,4 +368,28 @@ fn create_daggers_eaten_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let daggers_eaten_text = Spans::from(vec![Span::styled("   DAGGERS EATEN", styles.text)]);
     let daggers_eaten = Spans::from(vec![Span::styled(format!("{}", data.block.daggers_eaten), styles.accent)]);
     vec![Row::new([daggers_eaten_text, daggers_eaten])]
+}
+
+fn create_farm_efficiency_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
+    let styles = &config::cfg().ui_conf.theming.styles;
+    let farm_efficiency_text = Spans::from(vec![Span::styled("   FARM EFFICIENCY", styles.text)]);
+
+    let mut farm_efficiency = 0.;
+
+    if let Some(farm_end_frame) = data.frames.get(363) {
+        if data.block.starting_time <= 0. {
+            let used_by_farm_end = farm_end_frame.gems_collected - farm_end_frame.homing - 220;
+            let kill_baseline = farm_end_frame.kills - (123 + 4) + (farm_end_frame.enemies_alive - 1);
+            let elite_skull_collection = farm_end_frame.gems_collected - 285 - used_by_farm_end;
+            let optimum_skull_count = elite_skull_collection as f32 * 11 as f32 / kill_baseline as f32;
+            farm_efficiency = optimum_skull_count * 100.;
+        }
+    }
+
+    let farm_efficiency = Spans::from(vec![
+        Span::styled(format!("{:.2}", farm_efficiency), styles.accent),
+        Span::styled(format!("%"), styles.text)
+    ]);
+
+    vec![Row::new([farm_efficiency_text, farm_efficiency])]
 }

@@ -8,3 +8,4 @@ vcs.xml
 /.idea
 run_dbg.bat
 run_release.bat
+fastrun_dbg.sh

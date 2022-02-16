@@ -65,12 +65,20 @@ impl GamePollClient {
                 tokio::select! {
                     msg = msg_bus.recv() => match msg {
                         Ok(Message::Replay(data)) => {
+                            let cfg = crate::config::cfg();
                             c.replay_request = Some(data);
+                            if c.connection_state.eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
+                                log::info!("Opened DD: {:?}", ddcore_rs::memory::start_dd());
+                            }
                         },
                         Ok(Message::PlayReplayLocalFile(file_path)) => {
+                            let cfg = crate::config::cfg();
                             log::info!("LOCAL FILE REPLAY RECV: {file_path}");
                             if let Ok(replay_bin_from_file) = get_replay_file_content(file_path) {
                                 c.replay_request = Some(Arc::new(replay_bin_from_file));
+                                if c.connection_state.eq(&ConnectionState::NotConnected) && cfg.open_game_on_replay_request {
+                                    log::info!("Opened DD: {:?}", ddcore_rs::memory::start_dd());
+                                }
                             }
                         },
                         Ok(Message::UploadReplayBuffer) => {
@@ -119,14 +127,10 @@ impl GamePollClient {
         let cfg = crate::config::cfg();
         let os = if cfg.use_linux_proton {
             OperatingSystem::LinuxProton
+        } else if cfg!(target_os = "linux") {
+            OperatingSystem::Linux
         } else {
-            if cfg!(target_os = "linux") {
-                OperatingSystem::Linux
-            } else if cfg!(target_os = "winwdows") {
-                OperatingSystem::Windows
-            } else {
-                OperatingSystem::Windows
-            }
+            OperatingSystem::Windows
         };
 
         let conn_res = GameConnection::try_create(ConnectionParams {
@@ -134,13 +138,13 @@ impl GamePollClient {
             operating_system: os,
             overrides: MemoryOverride {
                 process_name: cfg.process_name_override.clone(),
-                block_marker: Some(MARKER_ADDR.get_or_init(|| { async {
+                block_marker: Some(*MARKER_ADDR.get_or_init(|| { async {
                     if cfg.block_marker_override.is_some() {
-                        return cfg.block_marker_override.unwrap().clone();
+                        return cfg.block_marker_override.unwrap();
                     }
                     if let Ok(marker_response) = ddcore_rs::ddinfo::get_ddstats_memory_marker(ddinfo::get_os()).await {
                         log::info!("Got marker from ddinfo");
-                        return marker_response.value.clone();
+                        return marker_response.value;
                     } else {
                         log::warn!("failed to load marker from ddinfo, using backup");
                     }
@@ -150,7 +154,7 @@ impl GamePollClient {
                     } else {
                         crate::consts::LINUX_BLOCK_START
                     }
-                }}).await.clone()),
+                }}).await),
             },
         });
 
@@ -172,9 +176,9 @@ impl GamePollClient {
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::NotConnected)));
         }
 
-        if let Ok(_) = self.connection.is_alive_res() {
+        if self.connection.is_alive_res().is_ok() {
             self.connection_state = ConnectionState::Connected;
-            let _ = self.state.load().msg_bus.0.send(Message::Log(format!("Game Connected!")));
+            let _ = self.state.load().msg_bus.0.send(Message::Log("Game Connected!".to_string()));
             let _ = self.state.load().msg_bus.0.send(Message::NewConnectionState(Arc::new(ConnectionState::Connected)));
         } else {
             log::info!("Conn Err: {:?}", self.connection.is_alive_res().err());
@@ -189,6 +193,7 @@ impl GamePollClient {
         let state = self.state.load();
 
         if let Ok(data) = self.connection.read_stats_block_with_frames() {
+            let cfg = crate::config::cfg();
             if let Some(snowflake) = self.new_snowflake(&data).await {
                 let _ = state.msg_bus.0.send(Message::NewSnowflake(Arc::new(snowflake)));
             }
@@ -196,7 +201,7 @@ impl GamePollClient {
             if self.replay_request.is_some() {
                 let taken = self.replay_request.as_ref().unwrap();
                 match self.connection.play_replay(taken.clone()) {
-                    Ok(_) => self.connection.maximize_dd(),
+                    Ok(_) => if cfg.open_game_on_replay_request { self.connection.maximize_dd() },
                     Err(e) =>  log::info!("failed to load replay: {}", e)
                 }
                 self.replay_request = None;
@@ -240,7 +245,7 @@ impl GamePollClient {
                 log::info!("Attempting to submit run");
                 if let Ok(replay) = self.connection.replay_bin() {
                     let repl = Arc::new(replay);
-                    let to_submit = GamePollClient::create_submit_event(&data, &data.frames.last().unwrap(), *state.snowflake, &repl);
+                    let to_submit = GamePollClient::create_submit_event(&data, data.frames.last().unwrap(), *state.snowflake, &repl);
                     let _ = state.msg_bus.0.send(Message::SubmitGame(Arc::new(to_submit)));
                     self.submitted_data = true;
                     if data.block.status == 3 || data.block.status == 4 || data.block.status == 5 {
@@ -319,8 +324,8 @@ impl GamePollClient {
             death_type: data.block.death_type as i32,
             is_replay: data.block.is_replay,
             replay_player_id,
-            per_enemy_alive_count: last.per_enemy_alive_count.clone(),
-            per_enemy_kill_count: last.per_enemy_kill_count.clone(),
+            per_enemy_alive_count: last.per_enemy_alive_count,
+            per_enemy_kill_count: last.per_enemy_kill_count,
             time_max: data.block.time_max,
             gems_collected: last.gems_collected,
             gems_total: last.gems_total,
@@ -334,7 +339,7 @@ impl GamePollClient {
             level_gems: last.level_gems,
             homing_daggers: last.homing,
             stats: data.frames.clone(),
-        }, snowflake.clone(), replay.clone())
+        }, snowflake, replay.clone())
     }
 
     #[rustfmt::skip]
@@ -369,7 +374,7 @@ impl GamePollClient {
             let _ = self.state.load().msg_bus.0.send(Message::Log("Disconnected".to_string()));
             return false;
         }
-        return true;
+        true
     }
 }
 

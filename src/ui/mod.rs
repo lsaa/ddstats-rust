@@ -142,8 +142,8 @@ impl UiThread {
                             continue;
                         }
 
-                        let ref read_data = state.last_poll;
-                        let ref connection_status = state.conn;
+                        let read_data = &state.last_poll;
+                        let connection_status = &state.conn;
         
                         term.draw(|f| {
                             let mut layout = Layout::default()
@@ -216,14 +216,14 @@ impl UiThread {
                                 crate::ui::draw_help_screen(
                                     f,
                                     info[info.len() - 1],
-                                    &read_data,
+                                    read_data,
                                     &extra_settings,
                                 );
                             } else {
                                 crate::ui::draw_info_table(
                                     f,
                                     info[info.len() - 1],
-                                    &read_data,
+                                    read_data,
                                     &extra_settings,
                                 );
 
@@ -370,7 +370,7 @@ pub fn draw_help_screen<B>(
     f.render_widget(t, area);
 }
 
-pub fn draw_logs<B>(f: &mut Frame<B>, area: Rect, logs: &Vec<String>)
+pub fn draw_logs<B>(f: &mut Frame<B>, area: Rect, logs: &[String])
 where
     B: Backend,
 {
@@ -386,15 +386,14 @@ where
         .iter()
         .enumerate()
         .map(|(i, &message)| {
-            let log;
-            if !logs.is_empty() && i == logs.len() - 1 {
-                log = Spans::from(vec![Span::styled(
+            let log = if !logs.is_empty() && i == logs.len() - 1 {
+                Spans::from(vec![Span::styled(
                     message,
                     cfg.ui_conf.theming.styles.most_recent_log,
-                )]);
+                )])
             } else {
-                log = Spans::from(vec![Span::styled(message, cfg.ui_conf.theming.styles.log_text)]);
-            }
+                Spans::from(vec![Span::styled(message, cfg.ui_conf.theming.styles.log_text)])
+            };
             ListItem::new(vec![log])
         })
         .collect();
