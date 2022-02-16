@@ -47,15 +47,12 @@ impl LiveGameClient {
             loop {
 
                 tokio::select! {
-                    msg = msg_bus.recv() => match msg {
-                        Ok(crate::threads::Message::SocketIoMessage(data)) => {
-                            new_sio_message = Some(data);
-                        },
-                        _ => {},
+                    msg = msg_bus.recv() => if let Ok(crate::threads::Message::SocketIoMessage(data)) = msg {
+                        new_sio_message = Some(data);
                     },
                     _elapsed = sio_tick_interval.tick() => {
                         let state = state.load();
-                        let ref last_data = state.last_poll;
+                        let last_data = &state.last_poll;
                         if (*state.conn).eq(&ConnectionState::Connected) {
                             if lgc.sio_status.ne(&SioStatus::LoggedIn) {
                                 if Instant::now().duration_since(login_cooldown) > Duration::from_secs(2) {
@@ -80,8 +77,8 @@ impl LiveGameClient {
                                         notify_above_1000 = false;
                                     }
 
-                                    log::info!("Submitting SIO {}", create_sio_submit(&submit_evt, (notify_pb, notify_above_1000)));
-                                    let sio_submit = current_socket.as_mut().unwrap().send_message(&Message::text(create_sio_submit(&submit_evt, (notify_pb, notify_above_1000))));
+                                    log::info!("Submitting SIO {}", create_sio_submit(submit_evt, (notify_pb, notify_above_1000)));
+                                    let sio_submit = current_socket.as_mut().unwrap().send_message(&Message::text(create_sio_submit(submit_evt, (notify_pb, notify_above_1000))));
                                     new_sio_message = None;
                                     if sio_submit.is_err() {
                                         current_socket = None;
@@ -109,8 +106,8 @@ impl LiveGameClient {
                                         death_type = last_data.block.death_type as i32;
                                     }
 
-                                    if should_submit_sio(&last_data) {
-                                        let res = current_socket.as_mut().unwrap().send_message(&Message::text(create_submit_stats_message(&last_data, death_type)));
+                                    if should_submit_sio(last_data) {
+                                        let res = current_socket.as_mut().unwrap().send_message(&Message::text(create_submit_stats_message(last_data, death_type)));
                                         if res.is_err() {
                                             current_socket = None;
                                             lgc.sio_status = SioStatus::Disconnected;

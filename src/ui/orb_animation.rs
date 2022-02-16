@@ -55,20 +55,19 @@ impl<'a> Widget for LeviRipple {
             if slp % 5 == 0 { std::thread::sleep(Duration::from_nanos(1)); }
         }
 
-        let msg;
-        if area.width % 2 == 0 {
-            msg = msg2;
+        let msg = if area.width % 2 == 0 {
+            msg2
         } else {
-            msg = msg1;
-        }
+            msg1
+        };
 
         let mut s = "".to_owned();
         for _ in 0..msg.len() {
-            s.push_str("#");
+            s.push('#');
         }
 
         for _ in 0..16 {
-            s.push_str("#");
+            s.push('#');
         }
 
         buf.set_span(
@@ -91,7 +90,7 @@ impl<'a> Widget for LeviRipple {
         );
         buf.set_span(
             area.width / 2 - (msg.len() / 2) as u16 - 8,
-            area.height / 2 + 0,
+            area.height / 2,
             &Span::styled(
                 s.clone(),
                 Style::default().bg(Color::Black).fg(Color::Black),

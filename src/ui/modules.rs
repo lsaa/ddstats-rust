@@ -25,22 +25,22 @@ pub enum GameDataModules {
     Spacing,
 }
 
-#[allow(unreachable_patterns)] #[rustfmt::skip]
+#[allow(unreachable_patterns, clippy::wildcard_in_or_patterns)] #[rustfmt::skip]
 impl<'a> GameDataModules {
     pub fn to_rows(&'a self, data: &'a StatsBlockWithFrames, extra: &'a ExtraSettings) -> Vec<Row> {
         match self {
-            GameDataModules::RunData => create_run_data_rows(&data),
-            GameDataModules::Timer => create_timer_rows(&data),
-            GameDataModules::Gems => create_gems_rows(&data),
-            GameDataModules::Homing(size_style) => create_homing_rows(&data, size_style.clone()),
-            GameDataModules::Kills => creake_kills_row(&data),
-            GameDataModules::Accuracy => create_accuracy_rows(&data),
-            GameDataModules::GemsLost(size_style) => create_gems_lost_rows(&data, size_style.clone()),
-            GameDataModules::CollectionAccuracy => create_collection_accuracy_rows(&data),
-            GameDataModules::HomingSplits(times) => create_homing_splits_rows(&data, times.clone(), extra.clone()),
-            GameDataModules::HomingUsed => create_homing_used_rows(&data),
-            GameDataModules::DaggersEaten => create_daggers_eaten_rows(&data),
-            GameDataModules::FarmEfficiency => create_farm_efficiency_rows(&data),
+            GameDataModules::RunData => create_run_data_rows(data),
+            GameDataModules::Timer => create_timer_rows(data),
+            GameDataModules::Gems => create_gems_rows(data),
+            GameDataModules::Homing(size_style) => create_homing_rows(data, size_style.clone()),
+            GameDataModules::Kills => creake_kills_row(data),
+            GameDataModules::Accuracy => create_accuracy_rows(data),
+            GameDataModules::GemsLost(size_style) => create_gems_lost_rows(data, size_style.clone()),
+            GameDataModules::CollectionAccuracy => create_collection_accuracy_rows(data),
+            GameDataModules::HomingSplits(times) => create_homing_splits_rows(data, times.clone(), extra.clone()),
+            GameDataModules::HomingUsed => create_homing_used_rows(data),
+            GameDataModules::DaggersEaten => create_daggers_eaten_rows(data),
+            GameDataModules::FarmEfficiency => create_farm_efficiency_rows(data),
             GameDataModules::Spacing | _ => vec![Row::new([""])],
         }
     }
@@ -48,7 +48,7 @@ impl<'a> GameDataModules {
 
 fn create_run_data_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     let styles = &config::cfg().ui_conf.theming.styles;
-    let player = data.block.replay_player_username().to_owned();
+    let player = data.block.replay_player_username();
     let status = FromPrimitive::from_i32(data.block.status);
     let status_str = match status {
         Some(st) => match st {
@@ -62,12 +62,13 @@ fn create_run_data_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
         }.to_string(),
         None => "CONNECTING".to_string()
     };
-    let status_span;
-    if status == Some(GameStatus::Dead) {
-        status_span = Span::styled(format!("   {}", status_str), styles.split_diff_neg.add_modifier(Modifier::BOLD));
+
+    let status_span = if status == Some(GameStatus::Dead) {
+        Span::styled(format!("   {}", status_str), styles.split_diff_neg.add_modifier(Modifier::BOLD))
     } else {
-        status_span = Span::styled(format!("   {}", status_str), styles.text);
-    }
+        Span::styled(format!("   {}", status_str), styles.text)
+    };
+
     let player = Span::styled(player, styles.accent);
     vec![Row::new([status_span, player])]
 }
@@ -93,13 +94,11 @@ fn create_gems_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
 }
 
 fn get_homing(data: &StatsBlockWithFrames) -> u32 {
-    let homing;
     if let Some(most_recent) = data.frames.last() {
-        homing = most_recent.homing;
+        most_recent.homing as u32
     } else {
-        homing = 0;
+        0
     }
-    homing as u32
 }
 
 #[allow(unreachable_patterns)]
@@ -109,7 +108,7 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
     match style {
         SizeStyle::Full => {
             let homing_detail = Spans::from(vec![
-                Span::styled(format!("{}", get_homing(&data)), styles.accent),
+                Span::styled(format!("{}", get_homing(data)), styles.accent),
                 Span::styled(" [", styles.text),
                 Span::styled(format!("{}", data.block.max_homing), styles.accent),
                 Span::styled(" at ", styles.text),
@@ -120,7 +119,7 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
         }
         SizeStyle::Compact => {
             let homing_detail = Spans::from(vec![
-                Span::styled(format!("{}", get_homing(&data)), styles.accent),
+                Span::styled(format!("{}", get_homing(data)), styles.accent),
                 Span::styled(" [", styles.text),
                 Span::styled(format!("{}", data.block.max_homing), styles.accent),
                 Span::styled(" @ ", styles.text),
@@ -131,7 +130,7 @@ fn create_homing_rows(data: &StatsBlockWithFrames, style: SizeStyle) -> Vec<Row>
         }
         SizeStyle::Minimal => {
             let homing_detail = Spans::from(vec![
-                Span::styled(format!("{}", get_homing(&data)), styles.accent)
+                Span::styled(format!("{}", get_homing(data)), styles.accent)
             ]);
             vec![Row::new([Spans::from(vec![Span::styled("   HOMING", styles.text)]), homing_detail])]
         }
@@ -157,7 +156,7 @@ fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
 
         let acc_text = Spans::from(vec![Span::styled("   ACCURACY", styles.text)]);
         let acc = if pacifist {
-            Spans::from(vec![Span::styled(format!("0.00"), styles.accent), 
+            Spans::from(vec![Span::styled("0.00".to_string(), styles.accent), 
                 Span::styled("% [", styles.text), Span::styled("PACIFIST", styles.accent), Span::styled("]", styles.text)])
         } else {
             Spans::from(vec![Span::styled(format!("{:.2}", acc * 100.), styles.accent), Span::styled("%", styles.text)])
@@ -166,7 +165,7 @@ fn create_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     }
     
     let acc_text = Spans::from(vec![Span::styled("   ACCURACY", styles.text)]);
-    let acc = Spans::from(vec![Span::styled(format!("0.00"), styles.accent), 
+    let acc = Spans::from(vec![Span::styled("0.00".to_string(), styles.accent), 
         Span::styled("% [", styles.text), Span::styled("PACIFIST", styles.accent), Span::styled("]", styles.text)]);
     vec![Row::new([acc_text, acc])]
 }
@@ -221,7 +220,7 @@ fn create_collection_accuracy_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
     }
     
     let acc_text = Spans::from(vec![Span::styled("   COLLECTION ACC", styles.text)]);
-    let acc = Spans::from(vec![Span::styled(format!("0.00"), styles.accent), Span::styled("%", styles.text)]);
+    let acc = Spans::from(vec![Span::styled("0.00".to_string(), styles.accent), Span::styled("%", styles.text)]);
     vec![Row::new([acc_text, acc])]
 }
 
@@ -259,13 +258,13 @@ fn create_homing_splits_rows(
             ])]));
         }
 
-        if !(data.block.is_replay || data.block.is_in_game) && !extra.homing_always_visible {
+        if !(data.block.is_replay || data.block.is_in_game || extra.homing_always_visible) {
             return None;
         }
 
         let time_frame = data.get_frame_for_time(*time);
-        let hom = if time_frame.is_some() { time_frame.unwrap().homing } else { data.frames.last().map_or(0, |x| x.homing) };
-        let col = if time_frame.is_some() { time_frame.unwrap().gems_collected } else { data.frames.last().map_or(0, |x| x.gems_collected) };
+        let hom = if let Some(time_frame) = time_frame { time_frame.homing } else { data.frames.last().map_or(0, |x| x.homing) };
+        let col = if let Some(time_frame) = time_frame { time_frame.gems_collected } else { data.frames.last().map_or(0, |x| x.gems_collected) };
         let arrow = crate::config::cfg().ui_conf.current_split_marker.clone();
 
         let v = StatsFrame::default();
@@ -312,12 +311,10 @@ fn create_homing_splits_rows(
                 } else {
                     data.block.gems_collected
                 }
+            } else if let Some(time_frame) = data.get_frame_for_time(times.get(i-1).unwrap().1) {
+                col - time_frame.gems_collected
             } else {
-                if let Some(time_frame) = data.get_frame_for_time(times.get(i-1).unwrap().1) {
-                    col - time_frame.gems_collected
-                } else {
-                    col
-                }
+                col
             }
         };
 
@@ -329,20 +326,18 @@ fn create_homing_splits_rows(
                 } else {
                     used_homing_current as i32
                 }
+            } else if let Some(_time_frame) = data.get_frame_for_time(*time) {
+                let last_split_homing_usage = data.homing_usage_from_frames(Some(times.get(i-1).unwrap().1 - data.block.starting_time));
+                data.homing_usage_from_frames(Some(*time - data.block.starting_time)) as i32 - last_split_homing_usage as i32
             } else {
-                if let Some(_time_frame) = data.get_frame_for_time(*time) {
-                    let last_split_homing_usage = data.homing_usage_from_frames(Some(times.get(i-1).unwrap().1 - data.block.starting_time));
-                    data.homing_usage_from_frames(Some(*time - data.block.starting_time)) as i32 - last_split_homing_usage as i32
-                } else {
-                    let last_split_homing_usage = data.homing_usage_from_frames(Some(times.get(i-1).unwrap().1 - data.block.starting_time));
-                    data.homing_usage_from_frames(Some(data.block.time_max)) as i32 - last_split_homing_usage as i32
-                }
+                let last_split_homing_usage = data.homing_usage_from_frames(Some(times.get(i-1).unwrap().1 - data.block.starting_time));
+                data.homing_usage_from_frames(Some(data.block.time_max)) as i32 - last_split_homing_usage as i32
             }
         };
 
         Some(Row::new([Spans::from(vec![Span::styled(split_text, styles.text)]), Spans::from(vec![
             Span::styled(format!("{:>4}", name), if i == current_split_idx && !data.block.is_replay { styles.accent } else { styles.text }),
-            Span::styled(format!(": "), styles.text),
+            Span::styled(": ".to_string(), styles.text),
             Span::styled(format!("{:>4}", hom), styles.accent),
             Span::styled(" (", styles.text),
             Span::styled(format!("{:<+4}", diff), split_style),
@@ -351,7 +346,7 @@ fn create_homing_splits_rows(
             Span::styled("-", styles.text),
             Span::styled(format!("{:<3}", usage), styles.split_diff_neg),
             Span::styled("] ", styles.text),
-            Span::styled(format!("{}", if i == current_split_idx && !data.block.is_replay { arrow } else { "".to_string() }), styles.accent),
+            Span::styled(if i == current_split_idx && !data.block.is_replay { arrow } else { "".to_string() }, styles.accent),
         ])]))
     }).collect()
 }
@@ -381,14 +376,14 @@ fn create_farm_efficiency_rows(data: &StatsBlockWithFrames) -> Vec<Row> {
             let used_by_farm_end = farm_end_frame.gems_collected - farm_end_frame.homing - 220;
             let kill_baseline = farm_end_frame.kills - (123 + 4) + (farm_end_frame.enemies_alive - 1);
             let elite_skull_collection = farm_end_frame.gems_collected - 285 - used_by_farm_end;
-            let optimum_skull_count = elite_skull_collection as f32 * 11 as f32 / kill_baseline as f32;
+            let optimum_skull_count = elite_skull_collection as f32 * 11_f32 / kill_baseline as f32;
             farm_efficiency = optimum_skull_count * 100.;
         }
     }
 
     let farm_efficiency = Spans::from(vec![
         Span::styled(format!("{:.2}", farm_efficiency), styles.accent),
-        Span::styled(format!("%"), styles.text)
+        Span::styled("%".to_string(), styles.text)
     ]);
 
     vec![Row::new([farm_efficiency_text, farm_efficiency])]

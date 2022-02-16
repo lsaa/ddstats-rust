@@ -22,7 +22,7 @@ const DEFAULT_CFG: &str = include_str!("../default_cfg.ron");
 type VersionedCfg = <DDStatsRustConfig as obake::Versioned>::Versioned;
 
 lazy_static! {
-    pub static ref CONFIG: AAS<DDStatsRustConfig> = Arc::new(ArcSwap::from_pointee(get_config().into()));
+    pub static ref CONFIG: AAS<DDStatsRustConfig> = Arc::new(ArcSwap::from_pointee(get_config()));
 }
 
 #[obake::versioned]
@@ -265,7 +265,7 @@ pub fn try_save_with_backup() -> anyhow::Result<()> {
     let mut current_config_file = File::open(&best_file)?;
     let backup_path = best_file.with_file_name("config.backup");
     log::info!("backup file path: {backup_path:?}");
-    let mut backup_file = File::create(backup_path.to_str().ok_or(anyhow::anyhow!("Failed to transform backup path to str"))?)?;
+    let mut backup_file = File::create(backup_path.to_str().ok_or_else(|| anyhow::anyhow!("Failed to transform backup path to str"))?)?;
     std::io::copy(&mut current_config_file, &mut backup_file)?;
     log::info!("Created backup");
 
@@ -318,7 +318,7 @@ fn get_config() -> DDStatsRustConfig {
 
     // Try to read from config file inside executable as last resort
     let cf: VersionedCfg = from_str(DEFAULT_CFG).unwrap();
-    return cf.into();
+    cf.into()
 }
 
 pub fn get_log_file_path() -> PathBuf {
@@ -332,7 +332,7 @@ pub fn get_log_file_path() -> PathBuf {
     }
 }
 
-pub fn cfg<'a>() -> Guard<Arc<DDStatsRustConfig>> {
+pub fn cfg() -> Guard<Arc<DDStatsRustConfig>> {
     CONFIG.load()
 }
 

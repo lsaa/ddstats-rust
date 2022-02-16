@@ -45,7 +45,7 @@ impl WebsocketServer {
         tokio::spawn(async move {
             log::info!("initializing server on port: 13666");
 
-            let health_check = warp::path("health-check").map(|| format!("Server OK"));
+            let health_check = warp::path("health-check").map(|| "Server OK".to_string());
 
             let ws = warp::path::end()
                 .and(warp::ws())
@@ -115,12 +115,9 @@ async fn handle_ws_client(
 
     loop {
         tokio::select! {
-            msg = msg_bus.recv() => match msg {
-                Ok(crate::threads::Message::WebSocketMessage(data)) => {
-                    let t = serde_json::to_string(&data).unwrap();
-                    let _ = sender.send(Message::text(t)).await;
-                },
-                _ => {},
+            msg = msg_bus.recv() => if let Ok(crate::threads::Message::WebSocketMessage(data)) = msg {
+                let t = serde_json::to_string(&data).unwrap();
+                let _ = sender.send(Message::text(t)).await;
             },
             body = receiver.next() => {
                 let message = match body {
@@ -236,7 +233,7 @@ async fn handle_websocket_message(
                 CONFIG.swap(Arc::new(c));
                 let bus_sender = state.msg_bus.0.clone();
                 let _ = bus_sender.send(crate::threads::Message::SaveCfg);
-                let t = format!("{{\"type\": \"color_set_ok\", \"data\": null }}");
+                let t = "{\"type\": \"color_set_ok\", \"data\": null }".to_string();
                 let _ = sender.send(Message::text(t)).await;
             },
             Err(e) => {
@@ -258,7 +255,7 @@ async fn handle_websocket_message(
                 CONFIG.swap(Arc::new(c));
                 let bus_sender = state.msg_bus.0.clone();
                 let _ = bus_sender.send(crate::threads::Message::SaveCfg);
-                let t = format!("{{\"type\": \"set_modules_ok\", \"data\": null }}");
+                let t = "{\"type\": \"set_modules_ok\", \"data\": null }".to_string();
                 let _ = sender.send(Message::text(t)).await;
             },
             Err(e) => {
@@ -296,7 +293,7 @@ impl FromStr for ColorProxy {
             "LightBlue" => Ok(ColorProxy(Color::LightBlue)),
             "LightMagenta" => Ok(ColorProxy(Color::LightMagenta)),
             "LightCyan" => Ok(ColorProxy(Color::LightCyan)),
-            "White" | _ => Ok(ColorProxy(Color::White)),
+            _ => Ok(ColorProxy(Color::White)),
         }
     }
 }
@@ -399,7 +396,7 @@ fn sse_miniblock(miniblock: MiniBlock, data: Arc<StatsBlockWithFrames>) -> Resul
         let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() - miniblock.snowflake;
         if t < Duration::from_secs(20).as_millis() {
             let mut extrae = (*data).clone();
-            if data.frames.len() > 0 {
+            if !data.frames.is_empty() {
                 extrae.frames = vec![data.frames[0]];
             } else {
                 extrae.frames = vec![];
@@ -424,7 +421,7 @@ pub async fn get_replay_link(link: &str) -> Result<Vec<u8>> {
     http.enforce_http(false);
     let https = hyper_tls::HttpsConnector::from((http, tls_connector.into()));
     let client = hyper::Client::builder().build(https);
-    let uri = format!("{}", link);
+    let uri = link.to_string();
     let req = Request::builder()
         .method(Method::GET)
         .uri(uri)

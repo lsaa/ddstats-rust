@@ -51,11 +51,11 @@ impl GameSubmissionClient {
                             }
 
                             let should_upload = should_upload_replay(&sge);
-                            let game_id = res.game_id.clone();
+                            let game_id = res.game_id;
                             let data_arc = sge.2.clone();
                             tokio::spawn(async move {
                                 let replay_hash = format!("{:x}", ddcore_rs::md5::compute(&*data_arc));
-                                if let Ok(_) = ddcore_rs::ddreplay::create_ddstats_trace(game_id as u64, replay_hash).await  {
+                                if ddcore_rs::ddreplay::create_ddstats_trace(game_id as u64, replay_hash).await.is_ok() {
                                     log::info!("traced ddstats game: {}", game_id);
                                     if should_upload {
                                         let _ = state.msg_bus.0.send(Message::UploadReplayData(data_arc, false));
@@ -64,7 +64,7 @@ impl GameSubmissionClient {
                             });
                         } else {
                             log::error!("Couldn't submit: {:?}", res);
-                            let _ = state.msg_bus.0.send(Message::Log(format!("Failed to Submit")));
+                            let _ = state.msg_bus.0.send(Message::Log("Failed to Submit".to_string()));
                         }
                     },
                 };

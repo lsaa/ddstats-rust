@@ -146,44 +146,42 @@ impl RichPresenceClient {
                                 .large_text("Playing V3"))
                         );
                     }
+                } else if game_data.block.level_gems == 71 {
+                    let _ = client.set_activity(activity::Activity::new()
+                        .state(&format!("{} at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
+                        .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                        .assets(Assets::new()
+                            .large_image(dagger)
+                            .large_text("Playing V3")
+                            .small_image("homing_colored")
+                            .small_text(&format!("{} Homing", game_data.block.homing)))
+                    );
+                } else if game_data.block.level_gems == 70 {
+                    let _ = client.set_activity(activity::Activity::new()
+                        .state(&format!("{} LVL3 at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
+                        .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                        .assets(Assets::new()
+                            .large_image(dagger)
+                            .large_text("Playing V3")
+                            .small_image("homing_colored")
+                            .small_text(&format!("{} Homing", game_data.block.homing)))
+                    );
+                } else if game_data.block.level_gems >= 10 {
+                    let _ = client.set_activity(activity::Activity::new()
+                        .state(&format!("Level 2 at {:.4}s", game_data.block.time + game_data.block.starting_time))
+                        .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                        .assets(Assets::new()
+                            .large_image(dagger)
+                            .large_text("Playing V3"))
+                    );
                 } else {
-                    if game_data.block.level_gems == 71 {
-                        let _ = client.set_activity(activity::Activity::new()
-                            .state(&format!("{} at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
-                            .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
-                            .assets(Assets::new()
-                                .large_image(dagger)
-                                .large_text("Playing V3")
-                                .small_image("homing_colored")
-                                .small_text(&format!("{} Homing", game_data.block.homing)))
-                        );
-                    } else if game_data.block.level_gems == 70 {
-                        let _ = client.set_activity(activity::Activity::new()
-                            .state(&format!("{} LVL3 at {:.4}s", game_data.block.homing, game_data.block.time + game_data.block.starting_time))
-                            .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
-                            .assets(Assets::new()
-                                .large_image(dagger)
-                                .large_text("Playing V3")
-                                .small_image("homing_colored")
-                                .small_text(&format!("{} Homing", game_data.block.homing)))
-                        );
-                    } else if game_data.block.level_gems >= 10 {
-                        let _ = client.set_activity(activity::Activity::new()
-                            .state(&format!("Level 2 at {:.4}s", game_data.block.time + game_data.block.starting_time))
-                            .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
-                            .assets(Assets::new()
-                                .large_image(dagger)
-                                .large_text("Playing V3"))
-                        );
-                    } else {
-                        let _ = client.set_activity(activity::Activity::new()
-                            .state(&format!("Level 1 at {:.4}s", game_data.block.time + game_data.block.starting_time))
-                            .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
-                            .assets(Assets::new()
-                                .large_image(dagger)
-                                .large_text("Playing V3"))
-                        );
-                    }
+                    let _ = client.set_activity(activity::Activity::new()
+                        .state(&format!("Level 1 at {:.4}s", game_data.block.time + game_data.block.starting_time))
+                        .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
+                        .assets(Assets::new()
+                            .large_image(dagger)
+                            .large_text("Playing V3"))
+                    );
                 }
             }
         });
