@@ -231,6 +231,7 @@ fn create_homing_splits_rows(
 ) -> Vec<Row> {
     let real_timer = data.block.time_max + data.block.starting_time;
     let styles = &config::cfg().ui_conf.theming.styles;
+    let cfg = crate::config::cfg();
 
     let current_split_idx = {
         if times.is_empty() { 0 } else {
@@ -248,7 +249,7 @@ fn create_homing_splits_rows(
     times.iter().enumerate().filter_map(|(i, (name, time, offset, positive, neutral, gold))| {
         let split_text = "   SPLIT";
 
-        if data.block.starting_time > *time || (real_timer <= *time && i != current_split_idx) {
+        if data.block.starting_time > *time || (real_timer <= *time && i != current_split_idx) || data.frames.is_empty() {
             if !extra.homing_always_visible {
                 return None;
             }
@@ -335,8 +336,18 @@ fn create_homing_splits_rows(
             }
         };
 
+        let is_live_split = i == current_split_idx && data.block.is_in_game && !data.block.is_replay;
+
+        let split_name = {
+            if cfg.ui_conf.current_split_live_change && is_live_split {
+                format!("{:>4}", real_timer.floor() as i32)
+            } else {
+                format!("{:>4}", name)
+            }
+        };
+
         Some(Row::new([Spans::from(vec![Span::styled(split_text, styles.text)]), Spans::from(vec![
-            Span::styled(format!("{:>4}", name), if i == current_split_idx && !data.block.is_replay { styles.accent } else { styles.text }),
+            Span::styled(format!("{:>4}", split_name), if is_live_split { styles.accent } else { styles.text }),
             Span::styled(": ".to_string(), styles.text),
             Span::styled(format!("{:>4}", hom), styles.accent),
             Span::styled(" (", styles.text),
@@ -346,7 +357,7 @@ fn create_homing_splits_rows(
             Span::styled("-", styles.text),
             Span::styled(format!("{:<3}", usage), styles.split_diff_neg),
             Span::styled("] ", styles.text),
-            Span::styled(if i == current_split_idx && !data.block.is_replay { arrow } else { "".to_string() }, styles.accent),
+            Span::styled(if is_live_split { arrow } else { "".to_string() }, styles.accent),
         ])]))
     }).collect()
 }

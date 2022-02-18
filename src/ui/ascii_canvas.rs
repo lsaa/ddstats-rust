@@ -2,7 +2,7 @@
 //  Ascii Canvas widget for tui-rs
 //
 
-use tui::{layout::{Alignment, Rect}, style::Style, widgets::Widget, buffer::Buffer, text::Span};
+use tui::{layout::{Alignment, Rect}, style::Style, widgets::Widget, buffer::Buffer, text::{Span, Spans}};
 
 pub struct AsciiCanvas {
     lines: Vec<String>,
@@ -51,13 +51,15 @@ impl<'a> Widget for AsciiCanvas {
 
 
 pub struct BorderOverdraw {
+    border_style: Style,
     style: Style,
 }
 
 impl BorderOverdraw {
-    pub fn new(style: Style) -> Self {
+    pub fn new(style: Style, border: Style) -> Self {
         Self {
             style,
+            border_style: border,
         }
     }
 }
@@ -67,6 +69,11 @@ impl<'a> Widget for BorderOverdraw {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let txt = "┤ [F4] Help ├";
         let txt_w = txt.len();
-        buf.set_span(area.x + area.width - txt_w as u16 - 1, area.y, &Span::styled(txt, self.style), txt_w as u16);
+        let spn = Spans::from(vec![
+            Span::styled("┤ ", self.border_style),
+            Span::styled("[F4] Help", self.style),
+            Span::styled(" ├", self.border_style),
+        ]);
+        buf.set_spans(area.x + area.width - txt_w as u16 - 1, area.y, &spn, txt_w as u16);
     }
 }

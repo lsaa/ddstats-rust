@@ -85,6 +85,8 @@ DDStatsRustConfig_v1_0_0((
         column_distance: 30, // Percentage
         show_help_on_border: true, // ┤ [F4] Help ├
         current_split_marker: "←",
+        current_split_live_change: true,
+        always_show_splits: false,
         theming: (
             styles: (
                 text:               (bg: None,        fg: Some(DarkGray),add_modifier: (bits: 0), sub_modifier: (bits: 0)),

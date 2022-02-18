@@ -197,6 +197,10 @@ impl GamePollClient {
                 let _ = state.msg_bus.0.send(Message::NewSnowflake(Arc::new(snowflake)));
             }
 
+            if self.replay_request.is_some() && data.block.status == 3 {
+                self.replay_request = None;
+            }
+
             if self.replay_request.is_some() {
                 let taken = self.replay_request.as_ref().unwrap();
                 match self.connection.play_replay(taken.clone()) {

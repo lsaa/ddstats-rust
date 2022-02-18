@@ -54,7 +54,7 @@ impl UiThread {
         let mut log_list = vec![];
         tokio::spawn(async move {
             let mut extra_settings = ExtraSettings {
-                homing_always_visible: false,
+                homing_always_visible: crate::config::cfg().ui_conf.always_show_splits,
                 draw_ui: crate::config::cfg().ui_conf.enabled,
                 help: false
             };
@@ -229,7 +229,11 @@ impl UiThread {
 
                                 // OVERDRAW HELP MESSAGE
                                 if cfg.ui_conf.show_help_on_border {
-                                    f.render_widget(ascii_canvas::BorderOverdraw::new(cfg.ui_conf.theming.styles.game_data), info[info.len() - 1]);
+                                    f.render_widget(ascii_canvas::BorderOverdraw::new(
+                                            cfg.ui_conf.theming.styles.game_data_title, 
+                                            cfg.ui_conf.theming.styles.game_data), 
+                                        info[info.len() - 1]
+                                    );
                                 }
                             }
                             

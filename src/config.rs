@@ -92,6 +92,10 @@ pub struct UiConf {
     pub show_help_on_border: bool,
     #[obake(cfg(">=1.0.0"))]
     pub current_split_marker: String,
+    #[obake(cfg(">=1.0.0"))]
+    pub current_split_live_change: bool,
+    #[obake(cfg(">=1.0.0"))]
+    pub always_show_splits: bool,
 
     // keeping this down here to hope that the deserializer leaves the junk in the bottom
     #[obake(cfg(">=1.0.0"))]
@@ -294,6 +298,16 @@ fn try_create_config_file() -> anyhow::Result<()> {
             let mut f_new = File::create(cpath)?;
             std::io::copy(&mut BufReader::new(DEFAULT_CFG.as_bytes()), &mut f_new)?;
         }
+    } else if Path::new("~/.config").exists() {
+        let config_home = "~/.config".to_string();
+        let c = format!("{}/ddstats-rust/", config_home.as_str());
+        let cpath = Path::new(c.as_str());
+        if std::fs::create_dir_all(cpath).is_ok() {
+            let c = format!("{}/ddstats-rust/config.ron", config_home.as_str());
+            let cpath = Path::new(c.as_str());
+            let mut f_new = File::create(cpath)?;
+            std::io::copy(&mut BufReader::new(DEFAULT_CFG.as_bytes()), &mut f_new)?;
+        }
     } else {
         let cpath = Path::new("./config.ron");
         let mut f_new = File::create(cpath)?;
@@ -327,6 +341,8 @@ pub fn get_log_file_path() -> PathBuf {
     } else if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
         let c = format!("{}/ddstats-rust/debug_logs.txt", config_home.as_str());
         Path::new(&c).to_owned()
+    } else if Path::new("~/.config/ddstats-rust").exists() {
+        Path::new("~/.config/ddstats-rust/debug_logs.txt").to_owned()
     } else {
         Path::new("./debug_logs.txt").to_owned()
     }

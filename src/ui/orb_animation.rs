@@ -2,8 +2,10 @@
 //  Orb animation widget for tui-rs
 //
 
-use std::{time::{Instant, Duration}, sync::Arc};
+use std::{time::Instant, sync::Arc};
 use tui::{layout::Rect, buffer::Buffer, style::{Style, Color}, widgets::Widget, text::Span};
+
+#[cfg(target_os = "windows")] use std::time::Duration;
 
 thread_local! {
     static LEVI: Arc<LeviRipple> = Arc::new(LeviRipple { start_time: Instant::now(), ms_count: 0 })
@@ -33,8 +35,8 @@ impl<'a> Widget for LeviRipple {
         let msg1 = "Waiting for Devil Daggers";
         let msg2 = "Waiting for Game";
         let mut tmp = [0; 4];
-        let precalc = (time_elapsed.as_millis() / 200) as f32;
-        let mut slp = 0;
+        let precalc = time_elapsed.as_millis() as f32 * (1. / 257.);
+        #[cfg(target_os = "windows")] let mut slp = 0;
         for y in 0..area.height {
             for x in 0..area.width {
                 let map_x = -((area.width as f32 - x as f32) - (area.width as f32 / 2.));
@@ -51,8 +53,9 @@ impl<'a> Widget for LeviRipple {
                     )
                 ));
             }
-            slp += 1;
-            if slp % 5 == 0 { std::thread::sleep(Duration::from_nanos(1)); }
+            #[cfg(target_os = "linux")] std::thread::sleep(std::time::Duration::from_nanos(70000 * area.width as u64));
+            #[cfg(target_os = "windows")] { slp += 1; }
+            #[cfg(target_os = "windows")] if slp % 5 == 0 { std::thread::sleep(Duration::from_nanos(1)); }
         }
 
         let msg = if area.width % 2 == 0 {
@@ -75,7 +78,7 @@ impl<'a> Widget for LeviRipple {
             area.height / 2 - 1,
             &Span::styled(
                 s.clone(),
-                Style::default().bg(Color::Black).fg(Color::Black),
+                Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(0,0,0)),
             ),
             msg.len() as u16 + 16,
         );
@@ -84,7 +87,7 @@ impl<'a> Widget for LeviRipple {
             area.height / 2 + 1,
             &Span::styled(
                 s.clone(),
-                Style::default().bg(Color::Black).fg(Color::Black),
+                Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(0,0,0)),
             ),
             msg.len() as u16 + 16,
         );
@@ -93,14 +96,14 @@ impl<'a> Widget for LeviRipple {
             area.height / 2,
             &Span::styled(
                 s.clone(),
-                Style::default().bg(Color::Black).fg(Color::Black),
+                Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(0,0,0)),
             ),
             msg.len() as u16 + 16,
         );
         buf.set_span(
             area.width / 2 - (msg.len() / 2) as u16,
             area.height / 2,
-            &Span::styled(msg, Style::default().bg(Color::Black).fg(Color::White)),
+            &Span::styled(msg, Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(255,255,255))),
             msg.len() as u16,
         );
     }
