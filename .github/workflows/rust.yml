@@ -3,8 +3,6 @@ name: Rust
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -58,7 +56,7 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           commit: master
-          tag: v0.6.8-${{ github.run_number }}
+          tag: v0.6.10-${{ github.run_number }}
           artifacts: "ddstats-rust-linux-x86_64.zip,ddstats-rust-windows-x86_64.zip"
           bodyFile: "body.md"
           preRelease: true

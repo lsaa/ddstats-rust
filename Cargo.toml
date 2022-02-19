@@ -2,10 +2,11 @@
 name = "ddstats-rust"
 version = "0.6.10+1"
 edition = "2021"
+build = "build.rs"
 
 [profile.release]
 strip = true
-lto = true # AHHHHAHAHAHHAHAHHAH WINDOWS!!!!!!!!!!!!!!!!
+lto = true
 codegen-units = 1
 
 [dependencies]
@@ -47,6 +48,6 @@ winreg = "0.10.1"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost"] }
-
-[target.'cfg(windows)'.build-dependencies]
+target_build_utils = "0.3.1"
 winres = "0.1"
+

@@ -252,14 +252,15 @@ impl GamePollClient {
                     let _ = state.msg_bus.0.send(Message::SubmitGame(Arc::new(to_submit)));
                     self.submitted_data = true;
                     let log_sender = state.msg_bus.0.clone();
-                    if data.block.status == 3 || data.block.status == 4 || data.block.status == 5 {
+                    let is_non_default = data.block.level_hash().ne(&V3_SURVIVAL_HASH.to_uppercase());
+                    if (data.block.status == 3 || data.block.status == 4 || data.block.status == 5) && is_non_default  && ddcl_secrets().is_some() {
                         tokio::spawn(async move {
                             let res = ddinfo::ddcl_submit::submit(data_clone, ddcl_secrets(), "ddstats-rust", "0.6.10.1", repl).await;
                             if res.is_ok() {
                                 let _ = log_sender.send(Message::Log("DDCL Submitted".to_string()));
                             } else {
                                 let _ = log_sender.send(Message::Log("DDCL Submit Fail".to_string()));
-                                log::error!("DDCL ERROR: {:?}", res.err());
+                               log::error!("DDCL ERROR: {:?}", res.err());
                             }
                         });
                     }
