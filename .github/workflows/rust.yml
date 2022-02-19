@@ -15,6 +15,7 @@ jobs:
   build-release:
     name: Build & Release
     runs-on: ubuntu-latest
+    environment: DDCL
     steps:
       - uses: actions/checkout@v2
       - name: Un-Mold
