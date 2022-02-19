@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Un-Mold
-        run: rm -r .cargp
+        run: rm -r .cargo
       - name: Setup Docker (Linux)
         run: docker build -t cross-rust-linux docker/linux
       - name: Setup Docker (Windows)
