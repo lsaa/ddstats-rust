@@ -25,7 +25,6 @@ make
 sudo make install
 cd ..
 
-sudo apt-get install software-properties-common
 sudo apt-get install libx11-xcb-dev libgl1-mesa-dev
 sudo apt install xorg-dev
 sudo apt install openssl libssl-dev pkg-config
