@@ -6,16 +6,16 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  DDCL_SECRETS_IV: ${{ secrets.DDCL_SECRETS_IV }}
-  DDCL_SECRETS_SALT: ${{ secrets.DDCL_SECRETS_SALT }}
-  DDCL_SECRETS_PASS: ${{ secrets.DDCL_SECRETS_PASS }}
-
 
 jobs:
   build-release:
     name: Build & Release
     runs-on: ubuntu-latest
     environment: DDCL
+    env:
+      DDCL_SECRETS_IV: ${{ secrets.DDCL_SECRETS_IV }}
+      DDCL_SECRETS_SALT: ${{ secrets.DDCL_SECRETS_SALT }}
+      DDCL_SECRETS_PASS: ${{ secrets.DDCL_SECRETS_PASS }}
     steps:
       - uses: actions/checkout@v2
       - name: Un-Mold
