@@ -10,5 +10,5 @@ cp target/x86_64-unknown-linux-gnu/release/ddstats-rust ddstats-rust-linux
 cp target/x86_64-pc-windows-gnu/release/ddstats-rust.exe ddstats-rust-windows
 cp linux_install.sh ddstats-rust-linux
 cp README_LINUX.txt ddstats-rust-linux
-zip -j ddstats-rust-linux-x86_64.zip ddstats-rust-linux
-zip -j ddstats-rust-windows-x86_64.zip ddstats-rust-windows
+zip -j ddstats-rust-linux-x86_64.zip -r ddstats-rust-linux
+zip -j ddstats-rust-windows-x86_64.zip -r ddstats-rust-windows
