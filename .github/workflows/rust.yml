@@ -6,6 +6,10 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  DDCL_SECRETS_IV: ${{ secrets.DDCL_SECRETS_IV }}
+  DDCL_SECRETS_SALT: ${{ secrets.DDCL_SECRETS_SALT }}
+  DDCL_SECRETS_PASS: ${{ secrets.DDCL_SECRETS_PASS }}
+
 
 jobs:
   build-release:
