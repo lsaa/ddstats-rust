@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Un-Mold
+        run: rm -r .cargp
       - name: Setup Docker (Linux)
         run: docker build -t cross-rust-linux docker/linux
       - name: Setup Docker (Windows)
@@ -23,14 +25,12 @@ jobs:
             target: x86_64-unknown-linux-gnu
             toolchain: nightly
             override: true
-            components: rustfmt, clippy
       - name: Install latest rust (windows)
         uses: actions-rs/toolchain@v1
         with:
             target: x86_64-pc-windows-gnu
             toolchain: nightly
             override: true
-            components: rustfmt, clippy
       - uses: actions-rs/cargo@v1
         with:
           use-cross: true
