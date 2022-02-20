@@ -12,10 +12,7 @@ jobs:
     name: Build & Release
     runs-on: ubuntu-latest
     environment: DDCL
-    env:
-      DDCL_SECRETS_IV: ${{ secrets.DDCL_SECRETS_IV }}
-      DDCL_SECRETS_SALT: ${{ secrets.DDCL_SECRETS_SALT }}
-      DDCL_SECRETS_PASS: ${{ secrets.DDCL_SECRETS_PASS }}
+   
     steps:
       - uses: actions/checkout@v2
       - name: Un-Mold
@@ -39,11 +36,19 @@ jobs:
             override: true
             components: rustfmt, clippy
       - uses: actions-rs/cargo@v1
+        env:
+          DDCL_SECRETS_IV: ${{ secrets.DDCL_SECRETS_IV }}
+          DDCL_SECRETS_SALT: ${{ secrets.DDCL_SECRETS_SALT }}
+          DDCL_SECRETS_PASS: ${{ secrets.DDCL_SECRETS_PASS }}
         with:
           use-cross: true
           command: build
           args: --release --target=x86_64-unknown-linux-gnu
       - uses: actions-rs/cargo@v1
+        env:
+          DDCL_SECRETS_IV: ${{ secrets.DDCL_SECRETS_IV }}
+          DDCL_SECRETS_SALT: ${{ secrets.DDCL_SECRETS_SALT }}
+          DDCL_SECRETS_PASS: ${{ secrets.DDCL_SECRETS_PASS }}
         with:
           use-cross: true
           command: build
