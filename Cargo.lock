@@ -506,7 +506,7 @@ dependencies = [
 
 [[package]]
 name = "ddstats-rust"
-version = "0.6.10+1"
+version = "0.6.10+2"
 dependencies = [
  "anyhow",
  "arc-swap",

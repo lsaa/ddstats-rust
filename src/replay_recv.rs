@@ -2,7 +2,7 @@
 //  replay_recv.rs - local replay receiver (Open With...)
 //
 
-use std::time::Duration;
+use std::{time::Duration, net::Ipv4Addr};
 use tokio::{net::{TcpListener, TcpStream}, io::{AsyncReadExt, AsyncWriteExt}};
 use crate::threads::{AAS, State};
 
@@ -12,6 +12,8 @@ pub struct LocalFileReplayMsg {
 }
 
 async fn process_socket(mut socket: TcpStream, state: AAS<State>) {
+    if socket.peer_addr().expect("No peer IP address").ip().ne(&Ipv4Addr::LOCALHOST) { return; }
+
     let _ = socket.readable().await;
     tokio::time::interval(Duration::from_millis(50)).tick().await;
     let mut txt_buf = [0u8; 2000];

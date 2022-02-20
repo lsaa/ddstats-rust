@@ -1,6 +1,6 @@
 [package]
 name = "ddstats-rust"
-version = "0.6.10+1"
+version = "0.6.10+2"
 edition = "2021"
 build = "build.rs"
 
