@@ -3,3 +3,10 @@ image = "cross-rust-windows"
 
 [target.x86_64-unknown-linux-gnu]
 image = "cross-rust-linux"
+
+[build.env]
+passthrough = [
+	"DDCL_SECRETS_IV",
+	"DDCL_SECRETS_PASS",
+	"DDCL_SECRETS_SALT",
+]
