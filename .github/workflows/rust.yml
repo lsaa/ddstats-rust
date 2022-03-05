@@ -1,8 +1,9 @@
 name: Rust
 
 on:
-  push:
-    branches: [ master ]
+  pull_request:
+    branches: [master]
+    types: [ready_for_review]  
 
 env:
   CARGO_TERM_COLOR: always
