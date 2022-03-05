@@ -6,7 +6,9 @@ pub const V3_SURVIVAL_HASH: &str = "569fead87abf4d30fdee4231a6398051";
 
 pub const VERSION: &str = "0.6.10";
 
-pub const INT_VER: u32 = 2;
+pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub const INT_VER: u32 = 3;
 
 pub const LOGO_ALT: &str = "
 @@@@@@@   @@@@@@@    @@@@@@   @@@@@@@   @@@@@@   @@@@@@@   @@@@@@@
@@ -30,7 +32,7 @@ pub const LOGO_NEW: &str = "
 ███    ███ ███    ███          ███     ███       ███    ███     ███              ███
 ███   ▄███ ███   ▄███    ▄█    ███     ███       ███    ███     ███        ▄█    ███
 ████████▀  ████████▀   ▄████████▀     ▄████▀     ███    █▀     ▄████▀    ▄████████▀
-v2 [ Stable ]                                                                   rust";
+v3 [ Stable ]                                                                   rust";
 
 pub const LOGO_MINI: &str = "
 ____________  _____ _____ ___ _____ _____
@@ -39,7 +41,7 @@ ____________  _____ _____ ___ _____ _____
 | | | | | | | `--. \\ | ||  _  || |  `--. \\
 | |/ /| |/ / /\\__/ / | || | | || | /\\__/ /
 |___/ |___/  \\____/  \\_/\\_| |_/\\_/ \\____/
-v2                                   rust";
+v3                                   rust";
 
 pub const SUBMIT_RETRY_MAX: u16 = 10;
 
