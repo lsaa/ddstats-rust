@@ -4,10 +4,13 @@
 
 use crate::consts::*;
 use crate::threads::{State, AAS, Message};
+use chashmap::CHashMap;
+use clipboard::{ClipboardProvider, ClipboardContext};
 use ddcore_rs::ddinfo;
 use ddcore_rs::ddinfo::ddcl_submit::DdclSecrets;
 use ddcore_rs::memory::{ConnectionParams, GameConnection, MemoryOverride, OperatingSystem};
 use ddcore_rs::models::{GameStatus, StatsBlockWithFrames, StatsFrame};
+use lazy_static::lazy_static;
 use num_traits::FromPrimitive;
 use serde::Serialize;
 use tokio::sync::OnceCell;
@@ -17,6 +20,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::time;
 
 static MARKER_ADDR: OnceCell<usize> = OnceCell::const_new();
+
+lazy_static! {
+    static ref CL_EXISTS_CACHE: CHashMap<String, bool> = CHashMap::new();
+}
 
 #[derive(PartialEq, Debug, Clone, Serialize)]
 pub enum ConnectionState {
@@ -86,10 +93,18 @@ impl GamePollClient {
                         Ok(Message::UploadReplayData(data, manual)) => {
                             let snd_msg = c.state.load().msg_bus.0.clone();
                             let _ = snd_msg.send(Message::Log("Uploading Replay...".to_string()));
+                            let dclone = data.clone(); // Refclone
                             tokio::spawn(async move {
                                 match ddcore_rs::ddreplay::upload_replay(data, manual).await {
                                     Ok(_) => {
                                         let _ = snd_msg.send(Message::Log("Replay Uploaded".to_string()));
+                                        if crate::config::cfg().auto_clipboard && manual {
+                                            log::info!("Setting manual clipboard");
+                                            let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+                                            let replay_hash = format!("{:?}", ddcore_rs::md5::compute(&dclone[..]));
+                                            let new_clip = format!("https://ddreplay.herokuapp.com/replay/{}", replay_hash);
+                                            ctx.set_contents(new_clip).unwrap();
+                                        }
                                     },
                                     Err(e) => {
                                         let _ = snd_msg.send(Message::Log("Replay Exists".to_string()));
@@ -228,11 +243,25 @@ impl GamePollClient {
                 if let Ok(replay) = self.connection.replay_bin() {
                     let msg_bus = state.msg_bus.0.clone();
                     tokio::spawn(async move {
-                        match ddcore_rs::ddreplay::upload_replay(Arc::new(replay), true).await {
+                        let r = Arc::new(replay);
+                        let rclone = r.clone();
+                        match ddcore_rs::ddreplay::upload_replay(r, true).await {
                             Ok(_) => {
+                                if crate::config::cfg().auto_clipboard {
+                                    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+                                    let replay_hash = format!("{:?}", ddcore_rs::md5::compute(&rclone[..]));
+                                    let new_clip = format!("https://ddstats.live/replay/{}", replay_hash);
+                                    ctx.set_contents(new_clip).unwrap();
+                                }
                                 let _ = msg_bus.send(Message::Log("Replay Uploaded".to_string()));
                             },
                             Err(e) => {
+                                if crate::config::cfg().auto_clipboard {
+                                    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+                                    let replay_hash = format!("{:?}", ddcore_rs::md5::compute(&rclone[..]));
+                                    let new_clip = format!("https://ddstats.live/replay/{}", replay_hash);
+                                    ctx.set_contents(new_clip).unwrap();
+                                }
                                 let _ = msg_bus.send(Message::Log("Replay Exists".to_string()));
                                 log::info!("Failed replay upload: {e:?}");
                             }
@@ -252,18 +281,18 @@ impl GamePollClient {
                     let _ = state.msg_bus.0.send(Message::SubmitGame(Arc::new(to_submit)));
                     self.submitted_data = true;
                     let log_sender = state.msg_bus.0.clone();
-                    let is_non_default = data.block.level_hash().ne(&V3_SURVIVAL_HASH.to_uppercase());
-                    if (data.block.status == 3 || data.block.status == 4 || data.block.status == 5) && is_non_default  && ddcl_secrets().is_some() {
-                        tokio::spawn(async move {
-                            let res = ddinfo::ddcl_submit::submit(data_clone, ddcl_secrets(), "ddstats-rust", "0.6.10.1", repl).await;
-                            if res.is_ok() {
-                                let _ = log_sender.send(Message::Log("DDCL Submitted".to_string()));
-                            } else {
-                                let _ = log_sender.send(Message::Log("DDCL Submit Fail".to_string()));
-                               log::error!("DDCL ERROR: {:?}", res.err());
-                            }
-                        });
-                    }
+                    tokio::spawn(async move {
+                        if !should_submit_ddcl(&data_clone).await {
+                            return;
+                        }
+                        let res = ddinfo::ddcl_submit::submit(data_clone, ddcl_secrets(), "ddstats-rust", PKG_VERSION.replace('+', "."), repl).await;
+                        if res.is_ok() {
+                            let _ = log_sender.send(Message::Log("DDCL Submitted".to_string()));
+                        } else {
+                            let _ = log_sender.send(Message::Log("DDCL Submit Fail".to_string()));
+                            log::error!("DDCL ERROR: {:?}", res.err());
+                        }
+                    });
                 }
             }
 
@@ -392,6 +421,32 @@ impl GamePollClient {
 fn get_replay_file_content(path: String) -> anyhow::Result<Vec<u8>> {
     let mut f = File::open(path)?;
     ddcore_rs::models::replay::DdRpl::validate_reader_output_bin(&mut f)
+}
+
+async fn should_submit_ddcl(data: &StatsBlockWithFrames) -> bool {
+    let is_non_default = data.block.level_hash().ne(&V3_SURVIVAL_HASH.to_uppercase());
+    (data.block.status == 3 || data.block.status == 4 || data.block.status == 5) &&
+    is_non_default && 
+    ddcl_secrets().is_some() && 
+    cl_exists(data.block.level_hash()).await.is_ok()
+}
+
+async fn cl_exists(hash: String) -> anyhow::Result<()> {
+    // Check cache
+    if let Some(cached_value) = CL_EXISTS_CACHE.get(&hash) {
+        return cached_value.then(|| ()).ok_or_else(|| anyhow::anyhow!("Cached value is false"));
+    }
+
+    // Request uncached data
+    log::info!("requesting cl exists for {}", hash);
+    let req_value = ddcore_rs::ddinfo::custom_leaderboard_exists(&hash).await;
+
+    // Save result to cache
+    CL_EXISTS_CACHE.insert(hash.clone(), req_value.is_ok());
+    
+    let _ = req_value?;
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Default)]
