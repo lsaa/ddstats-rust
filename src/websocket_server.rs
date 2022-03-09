@@ -3,11 +3,11 @@
 //
 
 use anyhow::{Result, bail};
+use ddcore_rs::client_https;
 use ddcore_rs::models::{StatsBlockWithFrames, StatsDataBlock, StatsFrame};
 use futures::SinkExt;
 use futures::{stream::SplitSink, StreamExt};
-use hyper::client::HttpConnector;
-use hyper::{Body, Method, Request};
+use hyper::{Request, Method, Body, Client};
 use serde::{Serialize, Deserialize};
 use serde_json::{Value, json};
 use tui::style::Color;
@@ -413,14 +413,7 @@ fn sse_miniblock(miniblock: MiniBlock, data: Arc<StatsBlockWithFrames>) -> Resul
 }
 
 pub async fn get_replay_link(link: &str) -> Result<Vec<u8>> {
-    let mut tls_connector_builder = native_tls::TlsConnector::builder();
-    tls_connector_builder.danger_accept_invalid_hostnames(true);
-    tls_connector_builder.danger_accept_invalid_certs(true);
-    let tls_connector = tls_connector_builder.build().unwrap();
-    let mut http = HttpConnector::new();
-    http.enforce_http(false);
-    let https = hyper_tls::HttpsConnector::from((http, tls_connector.into()));
-    let client = hyper::Client::builder().build(https);
+    let client = client_https!();
     let uri = link.to_string();
     let req = Request::builder()
         .method(Method::GET)

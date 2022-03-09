@@ -8,7 +8,7 @@ pub const VERSION: &str = "0.6.10";
 
 pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub const INT_VER: u32 = 3;
+pub const INT_VER: u32 = 4;
 
 pub const LOGO_ALT: &str = "
 @@@@@@@   @@@@@@@    @@@@@@   @@@@@@@   @@@@@@   @@@@@@@   @@@@@@@
@@ -32,7 +32,7 @@ pub const LOGO_NEW: &str = "
 ███    ███ ███    ███          ███     ███       ███    ███     ███              ███
 ███   ▄███ ███   ▄███    ▄█    ███     ███       ███    ███     ███        ▄█    ███
 ████████▀  ████████▀   ▄████████▀     ▄████▀     ███    █▀     ▄████▀    ▄████████▀
-v3 [ Stable ]                                                                   rust";
+v4 [ Stable ]                                                                   rust";
 
 pub const LOGO_MINI: &str = "
 ____________  _____ _____ ___ _____ _____
@@ -41,7 +41,7 @@ ____________  _____ _____ ___ _____ _____
 | | | | | | | `--. \\ | ||  _  || |  `--. \\
 | |/ /| |/ / /\\__/ / | || | | || | /\\__/ /
 |___/ |___/  \\____/  \\_/\\_| |_/\\_/ \\____/
-v3                                   rust";
+v4                                   rust";
 
 pub const SUBMIT_RETRY_MAX: u16 = 10;
 
