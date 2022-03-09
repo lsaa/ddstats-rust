@@ -1,6 +1,6 @@
 [package]
 name = "ddstats-rust"
-version = "0.6.10+3"
+version = "0.6.10+4"
 edition = "2021"
 build = "build.rs"
 
@@ -11,7 +11,7 @@ codegen-units = 1
 
 [dependencies]
 discord-rich-presence = "0.1.8"
-ddcore-rs = { version = "0.2.8", features = ["memory", "ddinfo", "ddcl_submit", "logger", "ddreplay"] }
+ddcore-rs = { version = "0.3.0", features = ["memory", "ddinfo", "ddcl_submit", "logger", "ddreplay"] }
 tonic = "0.6.2"
 prost = "0.9"
 tui = { version = "0.17.0", default-features = false, features = ["serde", "crossterm"]}
@@ -29,7 +29,8 @@ log-panics = "2.0"
 num-traits = "0.2"
 num-derive = "0.3"
 hyper = "0.14"
-hyper-tls = { version = "0.5", features = ["vendored"] }
+hyper-rustls = { version = "0.23" }
+rustls = { version = "0.20" }
 warp = { version = "0.3.2", features = ["tls"] }
 lazy_static = "1.4"
 clipboard = "0.5.0"

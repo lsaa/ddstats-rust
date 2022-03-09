@@ -206,8 +206,12 @@ impl GamePollClient {
 
         let state = self.state.load();
 
-        if let Ok(data) = self.connection.read_stats_block_with_frames() {
+        if let Ok(mut data) = self.connection.read_stats_block_with_frames() {
             let cfg = crate::config::cfg();
+
+            // TODO: !!!!!!!!!!!!!!!!!!!!!!! REMOVE THIS WHEN THE GAME UPDATES ON LINUX
+            #[cfg(target_os = "linux")] { data.block.game_mode = 0; }
+
             if let Some(snowflake) = self.new_snowflake(&data).await {
                 let _ = state.msg_bus.0.send(Message::NewSnowflake(Arc::new(snowflake)));
             }
@@ -428,6 +432,7 @@ async fn should_submit_ddcl(data: &StatsBlockWithFrames) -> bool {
     (data.block.status == 3 || data.block.status == 4 || data.block.status == 5) &&
     is_non_default && 
     ddcl_secrets().is_some() && 
+    (data.block.game_mode == 0 || data.block.is_time_attack_or_race_finished) &&
     cl_exists(data.block.level_hash()).await.is_ok()
 }
 
