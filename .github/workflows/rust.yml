@@ -71,5 +71,6 @@ jobs:
           tag: v0.6.10-${{ github.run_number }}
           artifacts: "ddstats-rust-linux-x86_64.zip,ddstats-rust-windows-x86_64.zip"
           preRelease: false
+          draft: true
           generateReleaseNotes: true
           token: ${{ secrets.GITHUB_TOKEN }}
