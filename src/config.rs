@@ -15,18 +15,24 @@ use ron::de::from_str;
 use ron::ser::PrettyConfig;
 use serde::Deserialize;
 use tui::style::Style;
+use crate::grpc_models::SavedData;
 use crate::threads::AAS;
 use crate::ui::modules::GameDataModules;
 
 const DEFAULT_CFG: &str = include_str!("../default_cfg.ron");
+const DEFAULT_SAVED: &str = include_str!("../default_data.ron");
+
 type VersionedCfg = <DDStatsRustConfig as obake::Versioned>::Versioned;
+type VersionedData = <SavedData as obake::Versioned>::Versioned;
 
 lazy_static! {
     pub static ref CONFIG: AAS<DDStatsRustConfig> = Arc::new(ArcSwap::from_pointee(get_config()));
+    pub static ref SAVED_DATA: AAS<SavedData> = Arc::new(ArcSwap::from_pointee(get_saved_data()));
 }
 
 #[obake::versioned]
 #[obake(version("1.0.0"))]
+#[obake(version("5.0.0"))]
 #[obake(derive(serde::Serialize, serde::Deserialize))]
 #[derive(Deserialize, serde::Serialize, Clone)]
 pub struct DDStatsRustConfig {
@@ -56,6 +62,10 @@ pub struct DDStatsRustConfig {
     pub process_name_override: Option<String>,
     #[obake(cfg(">=1.0.0"))]
     pub open_game_on_replay_request: bool,
+    #[obake(cfg(">=5.0.0"))]
+    pub saved_games_max: u32,
+    #[obake(cfg(">=5.0.0"))]
+    pub record_threshold: f32,
 
     #[obake(cfg(">=1.0.0"))]
     #[obake(inherit)]
@@ -71,8 +81,11 @@ pub struct DDStatsRustConfig {
     pub ui_conf: UiConf,
 }
 
+
+
 #[obake::versioned]
 #[obake(version("1.0.0"))]
+#[obake(version("5.0.0"))]
 #[obake(derive(serde::Serialize, serde::Deserialize))]
 #[derive(Deserialize, serde::Serialize, Clone)]
 pub struct UiConf {
@@ -115,15 +128,18 @@ pub enum LogoStyle {
 
 #[obake::versioned]
 #[obake(version("1.0.0"))]
+#[obake(version("5.0.0"))]
 #[obake(derive(serde::Serialize, serde::Deserialize))]
 #[derive(Deserialize, Clone, serde::Serialize)]
 pub struct Theming {
     #[obake(inherit)]
+    #[obake(cfg(">=1.0.0"))]
     pub styles: Styles,
 }
 
 #[obake::versioned]
 #[obake(version("1.0.0"))]
+#[obake(version("5.0.0"))]
 #[obake(derive(serde::Serialize, serde::Deserialize))]
 #[derive(Deserialize, Clone, serde::Serialize)]
 pub struct Styles {
@@ -159,6 +175,7 @@ pub struct Styles {
 
 #[obake::versioned]
 #[obake(version("1.0.0"))]
+#[obake(version("5.0.0"))]
 #[obake(derive(serde::Serialize, serde::Deserialize))]
 #[derive(Deserialize, serde::Serialize, Clone)]
 pub struct Stream {
@@ -172,6 +189,7 @@ pub struct Stream {
 
 #[obake::versioned]
 #[obake(version("1.0.0"))]
+#[obake(version("5.0.0"))]
 #[obake(derive(serde::Serialize, serde::Deserialize))]
 #[derive(Deserialize, serde::Serialize, Clone)]
 pub struct Submit {
@@ -187,6 +205,7 @@ pub struct Submit {
 
 #[obake::versioned]
 #[obake(version("1.0.0"))]
+#[obake(version("5.0.0"))]
 #[obake(derive(serde::Serialize, serde::Deserialize))]
 #[derive(Deserialize, serde::Serialize, Clone)]
 pub struct Discord {
@@ -197,6 +216,9 @@ pub struct Discord {
     #[obake(cfg(">=1.0.0"))]
     pub notify_custom_spawnsets: bool,
 }
+
+// VERSIONS
+include!("versioning/v5.rs");
 
 #[cfg(target_os = "linux")]
 fn get_priority_file() -> PathBuf {
@@ -332,6 +354,11 @@ fn get_config() -> DDStatsRustConfig {
 
     // Try to read from config file inside executable as last resort
     let cf: VersionedCfg = from_str(DEFAULT_CFG).unwrap();
+    cf.into()
+}
+
+fn get_saved_data() -> SavedData {
+    let cf: VersionedData = from_str(DEFAULT_SAVED).unwrap();
     cf.into()
 }
 

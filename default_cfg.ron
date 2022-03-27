@@ -47,7 +47,7 @@ ddstats-rust config
     On linux it just pulls from your terminal colors, probably in .Xdefaults
 */
 
-DDStatsRustConfig_v1_0_0((
+DDStatsRustConfig_v5_0_0((
     offline: false,
     debug_logs: true,
     host: "https://ddstats.com",
