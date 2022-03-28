@@ -31,6 +31,7 @@ fn char_from_intensity(intensity: u8) -> char {
 impl<'a> Widget for LeviRipple {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let lev = LEVI.with(|z| z.clone());
+        let style = &crate::config::cfg().ui_conf.theming.styles;
         let time_elapsed = lev.start_time.elapsed();
         // Different Messages so it can always be centered
         let msg1 = "Waiting for Devil Daggers";
@@ -51,14 +52,28 @@ impl<'a> Widget for LeviRipple {
                 let bitfuck = height.powf(a);
                 let bitfuck = (bitfuck / 25.).floor() * 25.;
                 let bitfuck = bitfuck.powf(1. / a);
+                let is_rbg = matches!(style.logo.fg, Some(Color::Rgb(_r, _g, _b)));
+                let style_ripple = if is_rbg {
+                    let target = match style.logo.fg { Some(Color::Rgb(r, g, b)) => (r, g, b), _ => (0, 0, 0) };
+                    let lerpr = (bitfuck / 255.) * target.0 as f32;
+                    let lerpg = (bitfuck / 255.) * target.1 as f32;
+                    let lerpb = (bitfuck / 255.) * target.2 as f32;
+                    let bgc = style.logo.bg.unwrap_or(Color::Rgb(0, 0, 0));
+                    Style::default().bg(bgc).fg(Color::Rgb(
+                            lerpr as u8,
+                            lerpg as u8,
+                            lerpb as u8,
+                    ))
+                } else {
+                    Style::default().bg(Color::Rgb(0, 0, 0)).fg(Color::Rgb(
+                            height as u8,
+                            0,
+                            0,
+                    ))
+                };
                 buf.get_mut(x, y)
                     .set_symbol(char_from_intensity(bitfuck as u8).encode_utf8(&mut tmp))
-                    .set_style(Style::default().bg(Color::Rgb(0, 0, 0)).fg(Color::Rgb(
-                        height as u8,
-                        0,
-                        0,
-                    )
-                ));
+                    .set_style(style_ripple);
             }
             #[cfg(target_os = "linux")] std::thread::sleep(std::time::Duration::from_nanos(70000 * area.width as u64));
             #[cfg(target_os = "windows")] { slp += 1; }
@@ -73,11 +88,11 @@ impl<'a> Widget for LeviRipple {
 
         let mut s = "".to_owned();
         for _ in 0..msg.len() {
-            s.push('#');
+            s.push(' ');
         }
 
         for _ in 0..16 {
-            s.push('#');
+            s.push(' ');
         }
 
         buf.set_span(
@@ -85,7 +100,7 @@ impl<'a> Widget for LeviRipple {
             area.height / 2 - 1,
             &Span::styled(
                 s.clone(),
-                Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(0,0,0)),
+                style.logo,
             ),
             msg.len() as u16 + 16,
         );
@@ -94,7 +109,7 @@ impl<'a> Widget for LeviRipple {
             area.height / 2 + 1,
             &Span::styled(
                 s.clone(),
-                Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(0,0,0)),
+                style.logo,
             ),
             msg.len() as u16 + 16,
         );
@@ -103,14 +118,14 @@ impl<'a> Widget for LeviRipple {
             area.height / 2,
             &Span::styled(
                 s.clone(),
-                Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(0,0,0)),
+                style.logo,
             ),
             msg.len() as u16 + 16,
         );
         buf.set_span(
             area.width / 2 - (msg.len() / 2) as u16,
             area.height / 2,
-            &Span::styled(msg, Style::default().bg(Color::Rgb(0,0,0)).fg(Color::Rgb(255,255,255))),
+            &Span::styled(msg, style.accent),
             msg.len() as u16,
         );
     }
