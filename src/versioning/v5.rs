@@ -12,6 +12,7 @@ impl From<DDStatsRustConfig!["1.0.0"]> for DDStatsRustConfig!["5.0.0"] {
         Self { 
             saved_games_max: 25,
             record_threshold: 350.,
+            auto_updater: true,
 
             host: cfg.host,
             grpc_host: cfg.grpc_host,

@@ -168,7 +168,7 @@ impl Run {
                 replay_flag: other.block.replay_flag,
                 replay_buffer_length: other.block.replay_buffer_length,
             },
-            frames: Frames { frames: other.frames.iter().map(|f| Frame::from_data_frame(f)).collect() },
+            frames: Frames { frames: other.frames.iter().map(Frame::from_data_frame).collect() },
         }
     }
 }

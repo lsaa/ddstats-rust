@@ -63,6 +63,7 @@ DDStatsRustConfig_v5_0_0((
     hide_window_on_start: false,
     saved_games_max: 25,
     record_threshold: 350.0,
+    auto_updater: true,
     stream: (
         stats: true,
         replay_stats: true,

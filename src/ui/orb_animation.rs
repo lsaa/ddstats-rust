@@ -3,7 +3,6 @@
 //
 
 use std::{time::Instant, sync::Arc};
-use num_traits::Float;
 use tui::{layout::Rect, buffer::Buffer, style::{Style, Color}, widgets::Widget, text::Span};
 
 #[cfg(target_os = "windows")] use std::time::Duration;

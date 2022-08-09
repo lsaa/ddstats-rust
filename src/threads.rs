@@ -3,7 +3,7 @@
 //  Rewrite Counter: 3 x (I HATE WINDOWS)
 
 use crate::{client::{ConnectionState, GamePollClient, SubmitGameEvent}, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::{WebsocketServer, WsBroadcast}, discord::RichPresenceClient, replay_recv::LocalReplayReceiver};
-use std::{sync::Arc, time::UNIX_EPOCH, net::TcpListener};
+use std::{sync::Arc, time::{UNIX_EPOCH, Duration}, net::TcpListener};
 use arc_swap::ArcSwap;
 use clap::Arg;
 use ddcore_rs::models::StatsBlockWithFrames;
@@ -93,6 +93,23 @@ pub async fn init() {
     if let Some(repl) = repl {
         let _ = state.load().msg_bus.0.send(Message::PlayReplayLocalFile(repl));
     }
+
+    let exit_recv = state.load().msg_bus.0.clone();
+    std::thread::spawn(move || {
+        ctrlc::set_handler(move || {
+            log::info!("AAA");
+            log::info!("AAA");
+            log::info!("AAA");
+            log::info!("AAA");
+            log::info!("AAA");
+            log::info!("AAA");
+            log::info!("AAA");
+            log::info!("AAA");
+            log::info!("AAA");
+            let _ = exit_recv.send(Message::Exit);
+            std::thread::sleep(Duration::from_secs(3));
+        }).expect("Error setting Ctrl-C handler");
+    });
 
     loop {
         tokio::select! {

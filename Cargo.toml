@@ -41,6 +41,8 @@ arc-swap = "1.5"
 obake = "1.0"
 clap = { version = "3.0.14", features = ["derive"] }
 chashmap = "2.2"
+ctrlc = { version = "3.0", features = ["termination"] }
+self_update = { version = "0.30.0", features = ["archive-zip", "rustls", "compression-zip-deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["tlhelp32", "winuser", "wincon"] }

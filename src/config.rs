@@ -66,6 +66,8 @@ pub struct DDStatsRustConfig {
     pub saved_games_max: u32,
     #[obake(cfg(">=5.0.0"))]
     pub record_threshold: f32,
+    #[obake(cfg(">=5.0.0"))]
+    pub auto_updater: bool,
 
     #[obake(cfg(">=1.0.0"))]
     #[obake(inherit)]
