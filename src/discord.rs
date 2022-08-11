@@ -4,10 +4,10 @@
 
 use std::time::Duration;
 use ddcore_rs::models::GameStatus;
-use discord_rich_presence::{new_client, activity::{self, Assets}, DiscordIpc};
+use discord_rich_presence::{DiscordIpcClient, DiscordIpc, activity::{self, Assets}};
 use lazy_static::lazy_static;
 use tokio::sync::OnceCell;
-use crate::{threads::{State, AAS}, client::ConnectionState, consts};
+use crate::{threads::{State, AAS}, client::ConnectionState, consts::{self, V3_SURVIVAL_HASH}};
 
 lazy_static! {
     static ref PLAYER_LB_DATA: OnceCell<ddcore_rs::ddinfo::models::Entry> = OnceCell::const_new();
@@ -19,7 +19,7 @@ impl RichPresenceClient {
     pub async fn init(state: AAS<State>) {
         tokio::spawn(async move {
             let mut looper = tokio::time::interval(Duration::from_secs(1));
-            let mut client = new_client("897951249507450880").expect("Can't go tits up");
+            let mut client = DiscordIpcClient::new("897951249507450880").expect("Can't go tits up");
             let mut is_rpc_connected = false;
             let mut tries = 0;
 
@@ -67,6 +67,15 @@ impl RichPresenceClient {
 
                 if !is_rpc_connected { continue; }
 
+                let is_non_default = state.last_poll.block.level_hash().ne(&V3_SURVIVAL_HASH.to_uppercase());
+                let mut playing_notif = "In Menu";
+                if state.last_poll.block.status().eq(&GameStatus::Playing) {
+                    playing_notif = if is_non_default { "Playing Spawnset" } else { "Playing V3" };
+                }
+                if state.last_poll.block.is_replay {
+                    playing_notif = "Watching Replay";
+                }
+
                 if game_data.block.status() == GameStatus::Dead {
                     let death_type = consts::DEATH_TYPES.get(game_data.block.death_type as usize).unwrap();
                     let last_frame = game_data.frames.last().unwrap();
@@ -77,7 +86,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3")
+                                .large_text(playing_notif)
                                 .small_image("homing_colored")
                                 .small_text(&format!("{} Homing", last_frame_homers)))
                         );
@@ -87,7 +96,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3")
+                                .large_text(playing_notif)
                                 .small_image("homing_colored")
                                 .small_text(&format!("{} Homing", last_frame_homers)))
                         );
@@ -97,7 +106,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3"))
+                                .large_text(playing_notif))
                         );
                     } else {
                         let _ = client.set_activity(activity::Activity::new()
@@ -105,7 +114,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3"))
+                                .large_text(playing_notif))
                         );
                     }
                 } else if game_data.block.is_replay {
@@ -115,7 +124,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3")
+                                .large_text(playing_notif)
                                 .small_image("homing_colored")
                                 .small_text(&format!("{} Homing", game_data.block.homing)))
                         );
@@ -125,7 +134,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3")
+                                .large_text(playing_notif)
                                 .small_image("homing_colored")
                                 .small_text(&format!("{} Homing", game_data.block.homing)))
                         );
@@ -135,7 +144,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3"))
+                                .large_text(playing_notif))
                         );
                     } else {
                         let _ = client.set_activity(activity::Activity::new()
@@ -143,7 +152,7 @@ impl RichPresenceClient {
                             .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                             .assets(Assets::new()
                                 .large_image(dagger)
-                                .large_text("Playing V3"))
+                                .large_text(playing_notif))
                         );
                     }
                 } else if game_data.block.level_gems == 71 {
@@ -152,7 +161,7 @@ impl RichPresenceClient {
                         .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                         .assets(Assets::new()
                             .large_image(dagger)
-                            .large_text("Playing V3")
+                            .large_text(playing_notif)
                             .small_image("homing_colored")
                             .small_text(&format!("{} Homing", game_data.block.homing)))
                     );
@@ -162,7 +171,7 @@ impl RichPresenceClient {
                         .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                         .assets(Assets::new()
                             .large_image(dagger)
-                            .large_text("Playing V3")
+                            .large_text(playing_notif)
                             .small_image("homing_colored")
                             .small_text(&format!("{} Homing", game_data.block.homing)))
                     );
@@ -172,7 +181,7 @@ impl RichPresenceClient {
                         .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                         .assets(Assets::new()
                             .large_image(dagger)
-                            .large_text("Playing V3"))
+                            .large_text(playing_notif))
                     );
                 } else {
                     let _ = client.set_activity(activity::Activity::new()
@@ -180,7 +189,7 @@ impl RichPresenceClient {
                         .details(&format!("{} Gems ({} Lost)", game_data.block.gems_collected, game_data.block.gems_eaten + game_data.block.gems_despawned))
                         .assets(Assets::new()
                             .large_image(dagger)
-                            .large_text("Playing V3"))
+                            .large_text(playing_notif))
                     );
                 }
             }

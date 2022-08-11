@@ -25,7 +25,7 @@ lazy_static! {
     static ref CL_EXISTS_CACHE: CHashMap<String, bool> = CHashMap::new();
 }
 
-#[derive(PartialEq, Debug, Clone, Serialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize)]
 pub enum ConnectionState {
     NotConnected,
     Connecting,
@@ -209,7 +209,7 @@ impl GamePollClient {
         if let Ok(mut data) = self.connection.read_stats_block_with_frames() {
             let cfg = crate::config::cfg();
 
-            // TODO: !!!!!!!!!!!!!!!!!!!!!!! REMOVE THIS WHEN THE GAME UPDATES ON LINUX
+            // TODO: !!!!!!!!!!!!!!!!!!!!!!! REMOVE THIS WHEN THE GAME UPDATES ON LINUX :D m4tt pls
             #[cfg(target_os = "linux")] { data.block.game_mode = 0; }
 
             if let Some(snowflake) = self.new_snowflake(&data).await {
@@ -431,7 +431,7 @@ async fn should_submit_ddcl(data: &StatsBlockWithFrames) -> bool {
     let is_non_default = data.block.level_hash().ne(&V3_SURVIVAL_HASH.to_uppercase());
     (data.block.status == 3 || data.block.status == 4 || data.block.status == 5) &&
     is_non_default && 
-    ddcl_secrets().is_some() && 
+    ddcl_secrets().is_some() &&
     (data.block.game_mode == 0 || data.block.is_time_attack_or_race_finished) &&
     cl_exists(data.block.level_hash()).await.is_ok()
 }
@@ -449,8 +449,9 @@ async fn cl_exists(hash: String) -> anyhow::Result<()> {
     // Save result to cache
     CL_EXISTS_CACHE.insert(hash.clone(), req_value.is_ok());
     
-    let _ = req_value?;
+    req_value?;
 
+    log::info!("DDCL HAS SPAWNSET");
     Ok(())
 }
 

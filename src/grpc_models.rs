@@ -122,8 +122,8 @@ impl Run {
             block: Block {
                 ddstats_version: other.block.ddstats_version,
                 player_id: other.block.player_id,
-                username: other.block.username,
-                survival_md5: other.block.survival_md5,
+                username: other.block.username.to_vec(),
+                survival_md5: other.block.survival_md5.to_vec(),
                 time_lvl2: other.block.time_lvl2,
                 time_lvl3: other.block.time_lvl3,
                 time_lvl4: other.block.time_lvl4,
@@ -148,15 +148,15 @@ impl Run {
                 daggers_eaten: other.block.daggers_eaten,
                 gems_eaten: other.block.gems_eaten,
                 gems_despawned: other.block.gems_despawned,
-                per_enemy_alive_count: other.block.per_enemy_alive_count,
-                per_enemy_kill_count: other.block.per_enemy_kill_count,
+                per_enemy_alive_count: other.block.per_enemy_alive_count.to_vec(),
+                per_enemy_kill_count: other.block.per_enemy_kill_count.to_vec(),
                 time: other.block.time,
                 is_player_alive: other.block.is_player_alive,
                 is_in_game: other.block.is_in_game,
                 is_time_attack_or_race_finished: other.block.is_time_attack_or_race_finished,
-                replay_player_name: other.block.replay_player_name,
+                replay_player_name: other.block.replay_player_name.to_vec(),
                 status: other.block.status,
-                stats_base: other.block.stats_base,
+                stats_base: other.block.stats_base.to_vec(),
                 stats_frames_loaded: other.block.stats_frames_loaded,
                 stats_finished_loading: other.block.stats_finished_loading,
                 starting_hand: other.block.starting_hand,
@@ -164,7 +164,7 @@ impl Run {
                 starting_homing: other.block.starting_homing,
                 prohibited_mods: other.block.prohibited_mods,
                 game_mode: other.block.game_mode,
-                replay_base: other.block.replay_base,
+                replay_base: other.block.replay_base.to_vec(),
                 replay_flag: other.block.replay_flag,
                 replay_buffer_length: other.block.replay_buffer_length,
             },
@@ -192,7 +192,7 @@ pub struct Block {
     #[obake(cfg(">=5.0.0"))]
     pub player_id: i32,
     #[obake(cfg(">=5.0.0"))]
-    pub username: [u8; 32],
+    pub username: Vec<u8>,
     #[obake(cfg(">=5.0.0"))]
     pub time: f32,
     #[obake(cfg(">=5.0.0"))]
@@ -218,9 +218,9 @@ pub struct Block {
     #[obake(cfg(">=5.0.0"))]
     pub daggers_eaten: i32,
     #[obake(cfg(">=5.0.0"))]
-    pub per_enemy_alive_count: [i16; 17],
+    pub per_enemy_alive_count: Vec<i16>,
     #[obake(cfg(">=5.0.0"))]
-    pub per_enemy_kill_count: [i16; 17],
+    pub per_enemy_kill_count: Vec<i16>,
     #[obake(cfg(">=5.0.0"))]
     pub is_player_alive: bool,
     #[obake(cfg(">=5.0.0"))]
@@ -232,9 +232,9 @@ pub struct Block {
     #[obake(cfg(">=5.0.0"))]
     pub replay_player_id: i32,
     #[obake(cfg(">=5.0.0"))]
-    pub replay_player_name: [u8; 32],
+    pub replay_player_name: Vec<u8>,
     #[obake(cfg(">=5.0.0"))]
-    pub survival_md5: [u8; 16],
+    pub survival_md5: Vec<u8>,
     #[obake(cfg(">=5.0.0"))]
     pub time_lvl2: f32,
     #[obake(cfg(">=5.0.0"))]
@@ -258,7 +258,7 @@ pub struct Block {
     #[obake(cfg(">=5.0.0"))]
     pub time_max: f32,
     #[obake(cfg(">=5.0.0"))]
-    pub stats_base: [u8; 8],
+    pub stats_base: Vec<u8>,
     #[obake(cfg(">=5.0.0"))]
     pub stats_frames_loaded: i32,
     #[obake(cfg(">=5.0.0"))]
@@ -272,7 +272,7 @@ pub struct Block {
     #[obake(cfg(">=5.0.0"))]
     pub prohibited_mods: bool,
     #[obake(cfg(">=5.0.0"))]
-    pub replay_base: [u8; 8],
+    pub replay_base: Vec<u8>,
     #[obake(cfg(">=5.0.0"))]
     pub replay_buffer_length: i32,
     #[obake(cfg(">=5.0.0"))]
@@ -319,9 +319,9 @@ pub struct Frame {
     #[obake(cfg(">=5.0.0"))]
     pub daggers_eaten: i32,
     #[obake(cfg(">=5.0.0"))]
-    pub per_enemy_alive_count: [i16; 17],
+    pub per_enemy_alive_count: Vec<i16>,
     #[obake(cfg(">=5.0.0"))]
-    pub per_enemy_kill_count: [i16; 17],
+    pub per_enemy_kill_count: Vec<i16>,
 }
 
 impl Frame {
@@ -334,8 +334,8 @@ impl Frame {
             homing: other.homing,
             enemies_alive: other.enemies_alive,
             kills: other.kills,
-            per_enemy_kill_count: other.per_enemy_kill_count,
-            per_enemy_alive_count: other.per_enemy_alive_count,
+            per_enemy_kill_count: other.per_enemy_kill_count.to_vec(),
+            per_enemy_alive_count: other.per_enemy_alive_count.to_vec(),
             daggers_eaten: other.daggers_eaten,
             daggers_hit: other.daggers_hit,
             daggers_fired: other.daggers_fired,

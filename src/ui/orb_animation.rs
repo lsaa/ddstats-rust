@@ -27,7 +27,7 @@ fn char_from_intensity(intensity: u8) -> char {
         .unwrap()
 }
 
-impl<'a> Widget for LeviRipple {
+impl Widget for LeviRipple {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let lev = LEVI.with(|z| z.clone());
         let style = &crate::config::cfg().ui_conf.theming.styles;

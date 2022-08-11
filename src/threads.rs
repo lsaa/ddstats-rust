@@ -97,15 +97,6 @@ pub async fn init() {
     let exit_recv = state.load().msg_bus.0.clone();
     std::thread::spawn(move || {
         ctrlc::set_handler(move || {
-            log::info!("AAA");
-            log::info!("AAA");
-            log::info!("AAA");
-            log::info!("AAA");
-            log::info!("AAA");
-            log::info!("AAA");
-            log::info!("AAA");
-            log::info!("AAA");
-            log::info!("AAA");
             let _ = exit_recv.send(Message::Exit);
             std::thread::sleep(Duration::from_secs(3));
         }).expect("Error setting Ctrl-C handler");

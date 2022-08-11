@@ -381,6 +381,9 @@ pub fn cfg() -> Guard<Arc<DDStatsRustConfig>> {
     CONFIG.load()
 }
 
+pub fn saved_data() -> Guard<Arc<SavedData>> {
+    SAVED_DATA.load()
+}
 
 /*
         let a: <DDStatsRustConfig as obake::Versioned>::Versioned =(DDStatsRustConfig {

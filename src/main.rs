@@ -17,7 +17,7 @@ async fn main() {
     use crate::config::cfg;
     use simple_logging::log_to_file;
 
-    if cfg().auto_updater {
+    if cfg().auto_updater && !cfg().offline {
         tokio::task::spawn_blocking(|| {
             if let Ok(()) = updater::update() {
                 let current_exe = std::env::current_exe().expect("current exe");
