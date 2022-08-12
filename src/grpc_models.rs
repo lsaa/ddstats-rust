@@ -102,6 +102,83 @@ pub struct SavedData {
     pub avg: Run,
 }
 
+impl SavedData {
+    pub fn update_min(&mut self) {
+        let new_run = self.recent_runs.runs.last().expect("this needs to be called after adding a new run");
+        self.min.block.time_lvl2 = self.avg.block.time_lvl2.min(new_run.block.time_lvl2);
+        self.min.block.time_lvl3 = self.avg.block.time_lvl3.min(new_run.block.time_lvl3);
+        self.min.block.time_lvl4 = self.avg.block.time_lvl4.min(new_run.block.time_lvl4);
+        self.min.block.time = self.avg.block.time.min(new_run.block.time);
+        self.min.block.levi_down_time = self.avg.block.levi_down_time.min(new_run.block.levi_down_time);
+        self.min.block.orb_down_time = self.avg.block.orb_down_time.min(new_run.block.orb_down_time);
+        self.min.block.enemies_alive_max = self.avg.block.enemies_alive_max.min(new_run.block.enemies_alive_max);
+        self.min.block.time_enemies_alive_max = self.avg.block.time_enemies_alive_max.min(new_run.block.time_enemies_alive_max);
+        self.min.block.max_homing = self.avg.block.max_homing.min(new_run.block.max_homing);
+        self.min.block.time_max_homing = self.avg.block.time_max_homing.min(new_run.block.time_max_homing);
+        self.min.block.daggers_hit = self.avg.block.daggers_hit.min(new_run.block.daggers_hit);
+        self.min.block.daggers_fired = self.avg.block.daggers_fired.min(new_run.block.daggers_fired);
+        self.min.block.enemies_alive = self.avg.block.enemies_alive.min(new_run.block.enemies_alive);
+        self.min.block.kills = self.avg.block.kills.min(new_run.block.kills);
+        self.min.block.gems_collected = self.avg.block.gems_collected.min(new_run.block.gems_collected);
+        self.min.block.gems_total = self.avg.block.gems_total.min(new_run.block.gems_total);
+        self.min.block.homing = self.avg.block.homing.min(new_run.block.homing);
+        self.min.block.time_max = self.avg.block.time_max.min(new_run.block.time_max);
+        self.min.block.daggers_eaten = self.avg.block.daggers_eaten.min(new_run.block.daggers_eaten);
+        self.min.block.gems_eaten = self.avg.block.gems_eaten.min(new_run.block.gems_eaten);
+        self.min.block.gems_despawned = self.avg.block.gems_despawned.min(new_run.block.gems_despawned);
+    }
+
+    pub fn update_max(&mut self) {
+        let new_run = self.recent_runs.runs.last().expect("this needs to be called after adding a new run");
+        self.max.block.time_lvl2 = self.avg.block.time_lvl2.max(new_run.block.time_lvl2);
+        self.max.block.time_lvl3 = self.avg.block.time_lvl3.max(new_run.block.time_lvl3);
+        self.max.block.time_lvl4 = self.avg.block.time_lvl4.max(new_run.block.time_lvl4);
+        self.max.block.time = self.avg.block.time.max(new_run.block.time);
+        self.max.block.levi_down_time = self.avg.block.levi_down_time.max(new_run.block.levi_down_time);
+        self.max.block.orb_down_time = self.avg.block.orb_down_time.max(new_run.block.orb_down_time);
+        self.max.block.enemies_alive_max = self.avg.block.enemies_alive_max.max(new_run.block.enemies_alive_max);
+        self.max.block.time_enemies_alive_max = self.avg.block.time_enemies_alive_max.max(new_run.block.time_enemies_alive_max);
+        self.max.block.max_homing = self.avg.block.max_homing.max(new_run.block.max_homing);
+        self.max.block.time_max_homing = self.avg.block.time_max_homing.max(new_run.block.time_max_homing);
+        self.max.block.daggers_hit = self.avg.block.daggers_hit.max(new_run.block.daggers_hit);
+        self.max.block.daggers_fired = self.avg.block.daggers_fired.max(new_run.block.daggers_fired);
+        self.max.block.enemies_alive = self.avg.block.enemies_alive.max(new_run.block.enemies_alive);
+        self.max.block.kills = self.avg.block.kills.max(new_run.block.kills);
+        self.max.block.gems_collected = self.avg.block.gems_collected.max(new_run.block.gems_collected);
+        self.max.block.gems_total = self.avg.block.gems_total.max(new_run.block.gems_total);
+        self.max.block.homing = self.avg.block.homing.max(new_run.block.homing);
+        self.max.block.time_max = self.avg.block.time_max.max(new_run.block.time_max);
+        self.max.block.daggers_eaten = self.avg.block.daggers_eaten.max(new_run.block.daggers_eaten);
+        self.max.block.gems_eaten = self.avg.block.gems_eaten.max(new_run.block.gems_eaten);
+        self.max.block.gems_despawned = self.avg.block.gems_despawned.max(new_run.block.gems_despawned);
+    }
+
+    pub fn update_avg(&mut self) {
+        let new_run = self.recent_runs.runs.last().expect("this needs to be called after adding a new run");
+        self.avg.block.time_lvl2 = self.avg.block.time_lvl2 + ((new_run.block.time_lvl2 - self.avg.block.time_lvl2) / self.recorded_runs as f32);
+        self.avg.block.time_lvl3 = self.avg.block.time_lvl3 + ((new_run.block.time_lvl3 - self.avg.block.time_lvl3) / self.recorded_runs as f32);
+        self.avg.block.time_lvl4 = self.avg.block.time_lvl4 + ((new_run.block.time_lvl4 - self.avg.block.time_lvl4) / self.recorded_runs as f32);
+        self.avg.block.time = self.avg.block.time + ((new_run.block.time - self.avg.block.time) / self.recorded_runs as f32);
+        self.avg.block.levi_down_time = self.avg.block.levi_down_time + ((new_run.block.levi_down_time - self.avg.block.levi_down_time) / self.recorded_runs as f32);
+        self.avg.block.orb_down_time = self.avg.block.orb_down_time + ((new_run.block.orb_down_time - self.avg.block.orb_down_time) / self.recorded_runs as f32);
+        self.avg.block.enemies_alive_max = self.avg.block.enemies_alive_max + ((new_run.block.enemies_alive_max - self.avg.block.enemies_alive_max) / self.recorded_runs as i32);
+        self.avg.block.time_enemies_alive_max = self.avg.block.time_enemies_alive_max + ((new_run.block.time_enemies_alive_max - self.avg.block.time_enemies_alive_max) / self.recorded_runs as f32);
+        self.avg.block.max_homing = self.avg.block.max_homing + ((new_run.block.max_homing - self.avg.block.max_homing) / self.recorded_runs as i32);
+        self.avg.block.time_max_homing = self.avg.block.time_max_homing + ((new_run.block.time_max_homing - self.avg.block.time_max_homing) / self.recorded_runs as f32);
+        self.avg.block.daggers_hit = self.avg.block.daggers_hit + ((new_run.block.daggers_hit - self.avg.block.daggers_hit) / self.recorded_runs as i32);
+        self.avg.block.daggers_fired = self.avg.block.daggers_fired + ((new_run.block.daggers_fired - self.avg.block.daggers_fired) / self.recorded_runs as i32);
+        self.avg.block.enemies_alive = self.avg.block.enemies_alive + ((new_run.block.enemies_alive - self.avg.block.enemies_alive) / self.recorded_runs as i32);
+        self.avg.block.kills = self.avg.block.kills + ((new_run.block.kills - self.avg.block.kills) / self.recorded_runs as i32);
+        self.avg.block.gems_collected = self.avg.block.gems_collected + ((new_run.block.gems_collected - self.avg.block.gems_collected) / self.recorded_runs as i32);
+        self.avg.block.gems_total = self.avg.block.gems_total + ((new_run.block.gems_total - self.avg.block.gems_total) / self.recorded_runs as i32);
+        self.avg.block.homing = self.avg.block.homing + ((new_run.block.homing - self.avg.block.homing) / self.recorded_runs as i32);
+        self.avg.block.time_max = self.avg.block.time_max + ((new_run.block.time_max - self.avg.block.time_max) / self.recorded_runs as f32);
+        self.avg.block.daggers_eaten = self.avg.block.daggers_eaten + ((new_run.block.daggers_eaten - self.avg.block.daggers_eaten) / self.recorded_runs as i32);
+        self.avg.block.gems_eaten = self.avg.block.gems_eaten + ((new_run.block.gems_eaten - self.avg.block.gems_eaten) / self.recorded_runs as i32);
+        self.avg.block.gems_despawned = self.avg.block.gems_despawned + ((new_run.block.gems_despawned - self.avg.block.gems_despawned) / self.recorded_runs as i32);
+    }
+}
+
 
 #[obake::versioned]
 #[obake(version("5.0.0"))]

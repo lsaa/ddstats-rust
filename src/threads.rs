@@ -125,6 +125,7 @@ pub async fn init() {
                 },
                 Ok(Message::Exit) => { 
                     log::info!("SAVING CFG: {:?}", crate::config::try_save_with_backup());
+                    log::info!("SAVING RECENT GAMES: {:?}", crate::config::try_save_cache_with_backup());
                     log::info!("EXIT"); 
                     break; 
                 },

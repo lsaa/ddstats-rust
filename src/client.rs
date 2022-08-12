@@ -3,6 +3,8 @@
 //
 
 use crate::consts::*;
+use crate::grpc_models::SavedData;
+use crate::grpc_models::SavedData;
 use crate::threads::{State, AAS, Message};
 use chashmap::CHashMap;
 use clipboard::{ClipboardProvider, ClipboardContext};
@@ -279,6 +281,26 @@ impl GamePollClient {
 
             if self.should_submit(&data, &status) {
                 log::info!("Attempting to submit run");
+
+                // Cache run values
+                if data.block.time_max > cfg.record_threshold {
+                    let mut saved_data: SavedData = (*crate::config::SAVED_DATA.load_full()).clone();
+                    saved_data.recorded_runs += 1;
+                    let run = crate::grpc_models::Run::from_sbwf(&data);
+                    if saved_data.recent_runs.runs.is_empty() {
+                        saved_data.min = run.clone();
+                        saved_data.max = run.clone();
+                    }
+                    saved_data.recent_runs.runs.push(run);
+                    while saved_data.recent_runs.runs.len() > cfg.saved_games_max as usize {
+                        saved_data.recent_runs.runs.remove(0);
+                    }
+                    saved_data.update_min();
+                    saved_data.update_max();
+                    saved_data.update_avg();
+                    crate::config::SAVED_DATA.swap(Arc::new(saved_data));
+                }
+
                 if let Ok(replay) = self.connection.replay_bin() {
                     let repl = Arc::new(replay);
                     let to_submit = GamePollClient::create_submit_event(&data, data.frames.last().unwrap(), *state.snowflake, &repl);

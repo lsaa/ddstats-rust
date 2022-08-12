@@ -246,6 +246,30 @@ fn get_priority_file() -> PathBuf {
     exe_path.with_file_name("config.ron")
 }
 
+#[cfg(target_os = "linux")]
+fn get_priority_file_cache() -> PathBuf {
+    let exe_path = std::env::current_exe().unwrap();
+    let config_path = exe_path.with_file_name("cache.ron");
+    if config_path.exists() {
+        config_path
+    } else {
+        let mut home;
+        if let Ok(xdg_home) = std::env::var("XDG_CONFIG_HOME") {
+            home = xdg_home;
+        } else {
+            home = std::env::var("HOME").unwrap();
+            home.push_str("/.config");
+        }
+        Path::new(format!("{}/ddstats-rust/cache.ron", home).as_str()).to_owned()
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn get_priority_file_cache() -> PathBuf {
+    let exe_path = std::env::current_exe().unwrap();
+    exe_path.with_file_name("cache.ron")
+}
+
 fn try_priority_file() -> anyhow::Result<VersionedCfg> {
     if get_priority_file().exists() {
         let f = File::open(&get_priority_file())?;
@@ -266,6 +290,29 @@ fn try_dbg_file() -> anyhow::Result<VersionedCfg> {
         }
     }
     
+    anyhow::bail!("Debug config not found");
+}
+
+fn try_priority_file_cache() -> anyhow::Result<VersionedData> {
+    if get_priority_file_cache().exists() {
+        let f = File::open(&get_priority_file_cache())?;
+        return Ok(from_reader(f)?);
+    }
+
+    anyhow::bail!("Priority config file not found");
+}
+
+fn try_dbg_file_cache() -> anyhow::Result<VersionedData> {
+    if let Some(dir) = option_env!("CARGO_MANIFEST_DIR") {
+        log::info!("Trying to load default data");
+        let c = format!("{}/default_data.ron", dir);
+        let fp = Path::new(c.as_str());
+        if fp.exists() {
+            let f = File::open(&fp)?;
+            return Ok(from_reader(f)?);
+        }
+    }
+
     anyhow::bail!("Debug config not found");
 }
 
@@ -312,6 +359,49 @@ pub fn try_save_with_backup() -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn try_save_cache_with_backup() -> anyhow::Result<()> {
+    let current_data = (*SAVED_DATA.load_full()).clone();
+    let current_data: VersionedData = current_data.into();
+    let serialized = ron::ser::to_string_pretty(
+        &current_data,
+        PrettyConfig::new().indentor("    ".to_string()).depth_limit(4).decimal_floats(true)
+    )?;
+
+    // Bail if any of the steps fail
+    // 1 - Find best config file
+
+    let best_file = get_priority_file_cache();
+
+    if !best_file.exists() {
+        anyhow::bail!("No data file found.");
+    }
+
+    log::info!("Found best file: {best_file:?}");
+
+    // 2 - Create backup
+
+    let mut current_data_file = File::open(&best_file)?;
+    let backup_path = best_file.with_file_name("data.backup");
+    log::info!("backup file path: {backup_path:?}");
+    let mut backup_file = File::create(backup_path.to_str().ok_or_else(|| anyhow::anyhow!("Failed to transform backup path to str"))?)?;
+    std::io::copy(&mut current_data_file, &mut backup_file)?;
+    log::info!("Created backup");
+
+    // 3 - Write to config file
+
+    let mut current_data_file = File::create(&best_file)?;
+    let mut serialized_file_reader = BufReader::new(serialized.as_bytes());
+    std::io::copy(&mut serialized_file_reader, &mut current_data_file)?;
+    log::info!("Wrote to data");
+
+    // 4 - Cleanup backup
+
+    std::fs::remove_file(backup_path)?;
+    log::info!("Cleaned backup");
+
+    Ok(())
+}
+
 fn try_create_config_file() -> anyhow::Result<()> {
     if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
         let c = format!("{}/ddstats-rust/", config_home.as_str());
@@ -341,6 +431,35 @@ fn try_create_config_file() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn try_create_data_file() -> anyhow::Result<()> {
+    if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME") {
+        let c = format!("{}/ddstats-rust/", config_home.as_str());
+        let cpath = Path::new(c.as_str());
+        if std::fs::create_dir_all(cpath).is_ok() {
+            let c = format!("{}/ddstats-rust/data.ron", config_home.as_str());
+            let cpath = Path::new(c.as_str());
+            let mut f_new = File::create(cpath)?;
+            std::io::copy(&mut BufReader::new(DEFAULT_SAVED.as_bytes()), &mut f_new)?;
+        }
+    } else if Path::new("~/.config").exists() {
+        let config_home = "~/.config".to_string();
+        let c = format!("{}/ddstats-rust/", config_home.as_str());
+        let cpath = Path::new(c.as_str());
+        if std::fs::create_dir_all(cpath).is_ok() {
+            let c = format!("{}/ddstats-rust/data.ron", config_home.as_str());
+            let cpath = Path::new(c.as_str());
+            let mut f_new = File::create(cpath)?;
+            std::io::copy(&mut BufReader::new(DEFAULT_SAVED.as_bytes()), &mut f_new)?;
+        }
+    } else {
+        let cpath = Path::new("./data.ron");
+        let mut f_new = File::create(cpath)?;
+        std::io::copy(&mut BufReader::new(DEFAULT_SAVED.as_bytes()), &mut f_new)?;
+    }
+
+    Ok(())
+}
+
 fn get_config() -> DDStatsRustConfig {
     if let Ok(conf) = try_priority_file() {
         return conf.into();
@@ -360,6 +479,18 @@ fn get_config() -> DDStatsRustConfig {
 }
 
 fn get_saved_data() -> SavedData {
+    if let Ok(data) = try_priority_file_cache() {
+        return data.into();
+    }
+
+    if let Ok(data) = try_dbg_file_cache() {
+        return data.into();
+    }
+
+    if let Err(e) = try_create_data_file() {
+        log::warn!("Failed to create config file: {e:?}");
+    }
+
     let cf: VersionedData = from_str(DEFAULT_SAVED).unwrap();
     cf.into()
 }
