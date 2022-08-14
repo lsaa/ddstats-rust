@@ -3,6 +3,7 @@
 //
 
 use crate::consts::*;
+use crate::grpc_models::SavedData;
 use crate::threads::{State, AAS, Message};
 use chashmap::CHashMap;
 use clipboard::{ClipboardProvider, ClipboardContext};
@@ -25,7 +26,7 @@ lazy_static! {
     static ref CL_EXISTS_CACHE: CHashMap<String, bool> = CHashMap::new();
 }
 
-#[derive(PartialEq, Debug, Clone, Serialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize)]
 pub enum ConnectionState {
     NotConnected,
     Connecting,
@@ -209,7 +210,7 @@ impl GamePollClient {
         if let Ok(mut data) = self.connection.read_stats_block_with_frames() {
             let cfg = crate::config::cfg();
 
-            // TODO: !!!!!!!!!!!!!!!!!!!!!!! REMOVE THIS WHEN THE GAME UPDATES ON LINUX
+            // TODO: !!!!!!!!!!!!!!!!!!!!!!! REMOVE THIS WHEN THE GAME UPDATES ON LINUX :D m4tt pls
             #[cfg(target_os = "linux")] { data.block.game_mode = 0; }
 
             if let Some(snowflake) = self.new_snowflake(&data).await {
@@ -279,6 +280,26 @@ impl GamePollClient {
 
             if self.should_submit(&data, &status) {
                 log::info!("Attempting to submit run");
+
+                // Cache run values
+                if data.block.time_max > cfg.record_threshold {
+                    let mut saved_data: SavedData = (*crate::config::SAVED_DATA.load_full()).clone();
+                    saved_data.recorded_runs += 1;
+                    let run = crate::grpc_models::Run::from_sbwf(&data);
+                    if saved_data.recent_runs.runs.is_empty() {
+                        saved_data.min = run.clone();
+                        saved_data.max = run.clone();
+                    }
+                    saved_data.recent_runs.runs.push(run);
+                    while saved_data.recent_runs.runs.len() > cfg.saved_games_max as usize {
+                        saved_data.recent_runs.runs.remove(0);
+                    }
+                    saved_data.update_min();
+                    saved_data.update_max();
+                    saved_data.update_avg();
+                    crate::config::SAVED_DATA.swap(Arc::new(saved_data));
+                }
+
                 if let Ok(replay) = self.connection.replay_bin() {
                     let repl = Arc::new(replay);
                     let to_submit = GamePollClient::create_submit_event(&data, data.frames.last().unwrap(), *state.snowflake, &repl);
@@ -431,7 +452,7 @@ async fn should_submit_ddcl(data: &StatsBlockWithFrames) -> bool {
     let is_non_default = data.block.level_hash().ne(&V3_SURVIVAL_HASH.to_uppercase());
     (data.block.status == 3 || data.block.status == 4 || data.block.status == 5) &&
     is_non_default && 
-    ddcl_secrets().is_some() && 
+    ddcl_secrets().is_some() &&
     (data.block.game_mode == 0 || data.block.is_time_attack_or_race_finished) &&
     cl_exists(data.block.level_hash()).await.is_ok()
 }
@@ -449,8 +470,9 @@ async fn cl_exists(hash: String) -> anyhow::Result<()> {
     // Save result to cache
     CL_EXISTS_CACHE.insert(hash.clone(), req_value.is_ok());
     
-    let _ = req_value?;
+    req_value?;
 
+    log::info!("DDCL HAS SPAWNSET");
     Ok(())
 }
 

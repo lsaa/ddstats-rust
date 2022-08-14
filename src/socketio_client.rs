@@ -4,15 +4,16 @@
 
 use std::time::{Duration, Instant};
 use ddcore_rs::models::{GameStatus, StatsBlockWithFrames};
-use native_tls::{Protocol, TlsConnector};
 use anyhow::Result;
+use futures::{StreamExt, SinkExt};
 use num_traits::FromPrimitive;
-use websocket::{ClientBuilder, Message, sync::{Client, stream::NetworkStream}};
+use tokio::net::TcpStream;
+use tokio_tungstenite::{connect_async, WebSocketStream, MaybeTlsStream, tungstenite::Message};
 use crate::{client::ConnectionState, threads::{AAS, State}};
 
 /////////////////////////////////
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, Eq, PartialOrd)]
 pub enum SioStatus {
 	Disconnected = 1,
 	Connecting,
@@ -45,7 +46,6 @@ impl LiveGameClient {
             let mut login_cooldown = Instant::now();
 
             loop {
-
                 tokio::select! {
                     msg = msg_bus.recv() => if let Ok(crate::threads::Message::SocketIoMessage(data)) = msg {
                         new_sio_message = Some(data);
@@ -57,11 +57,13 @@ impl LiveGameClient {
                             if lgc.sio_status.ne(&SioStatus::LoggedIn) {
                                 if Instant::now().duration_since(login_cooldown) > Duration::from_secs(2) {
                                     login_cooldown = Instant::now();
-                                    let connection = connect();
+                                    let connection = connect().await;
                                     if connection.is_ok() {
-                                        current_socket = Some(connection.unwrap());
+                                        current_socket = Some(connection.unwrap().split().0);
                                         lgc.sio_status = SioStatus::Connected;
-                                        let res = current_socket.as_mut().unwrap().send_message(&Message::text(create_login_message(last_data.block.player_id)));
+                                        let writer = current_socket.as_mut().unwrap();
+                                        let msg = create_login_message(last_data.block.player_id);
+                                        let res = writer.send(Message::Text(msg)).await;
                                         if res.is_ok() {
                                             lgc.sio_status = SioStatus::LoggedIn;
                                         }
@@ -78,9 +80,12 @@ impl LiveGameClient {
                                     }
 
                                     log::info!("Submitting SIO {}", create_sio_submit(submit_evt, (notify_pb, notify_above_1000)));
-                                    let sio_submit = current_socket.as_mut().unwrap().send_message(&Message::text(create_sio_submit(submit_evt, (notify_pb, notify_above_1000))));
+                                    let writer = current_socket.as_mut().unwrap();
+                                    let msg = create_sio_submit(submit_evt, (notify_pb, notify_above_1000));
+                                    let res = writer.send(Message::Text(msg)).await;
+
                                     new_sio_message = None;
-                                    if sio_submit.is_err() {
+                                    if res.is_err() {
                                         current_socket = None;
                                         lgc.sio_status = SioStatus::Disconnected;
                                         continue;
@@ -89,7 +94,8 @@ impl LiveGameClient {
 
                                 // KeepAlive
                                 if last_ping.elapsed() > Duration::from_secs(24) {
-                                    let ping = current_socket.as_mut().unwrap().send_message(&Message::text("2"));
+                                    let writer = current_socket.as_mut().unwrap();
+                                    let ping = writer.send(Message::Text("2".to_owned())).await;
                                     last_ping = Instant::now();
                                     if ping.is_err() {
                                         current_socket = None;
@@ -107,7 +113,9 @@ impl LiveGameClient {
                                     }
 
                                     if should_submit_sio(last_data) {
-                                        let res = current_socket.as_mut().unwrap().send_message(&Message::text(create_submit_stats_message(last_data, death_type)));
+                                        let writer = current_socket.as_mut().unwrap();
+                                        let msg = create_submit_stats_message(last_data, death_type);
+                                        let res = writer.send(Message::Text(msg)).await;
                                         if res.is_err() {
                                             current_socket = None;
                                             lgc.sio_status = SioStatus::Disconnected;
@@ -124,7 +132,9 @@ impl LiveGameClient {
                                         _ => 3,
                                     };
                                     if cfg.stream.stats {
-                                        let res = current_socket.as_mut().unwrap().send_message(&Message::text(create_change_status_message(last_data.block.player_id, sio_status)));
+                                        let writer = current_socket.as_mut().unwrap();
+                                        let msg = create_change_status_message(last_data.block.player_id, sio_status);
+                                        let res = writer.send(Message::Text(msg)).await;
                                         if res.is_err() {
                                             current_socket = None;
                                             lgc.sio_status = SioStatus::Disconnected;
@@ -188,13 +198,8 @@ fn create_login_message(player_id: i32) -> String {
     format!("42[\"login\", {}]", player_id)
 }
 
-fn connect() -> Result<Client<Box<dyn NetworkStream + Send>>> {
-    let tls_connector =  TlsConnector::builder()
-        .min_protocol_version(Some(Protocol::Tlsv12))
-        .max_protocol_version(Some(Protocol::Tlsv12))
-        .build()?;
-
-    ClientBuilder::new("wss://ddstats.com/socket.io/?EIO=3&transport=websocket")?
-        .connect(Some(tls_connector))
-        .map_err(|_| anyhow::Error::msg("Websocket Error"))
+async fn connect() -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+    let url = "wss://ddstats.com/socket.io/?EIO=3&transport=websocket";
+    let (ws_stream, _) = connect_async(url).await?;
+    Ok(ws_stream)
 }

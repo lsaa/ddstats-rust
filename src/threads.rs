@@ -3,7 +3,7 @@
 //  Rewrite Counter: 3 x (I HATE WINDOWS)
 
 use crate::{client::{ConnectionState, GamePollClient, SubmitGameEvent}, grpc_client::GameSubmissionClient, socketio_client::LiveGameClient, ui::UiThread, websocket_server::{WebsocketServer, WsBroadcast}, discord::RichPresenceClient, replay_recv::LocalReplayReceiver};
-use std::{sync::Arc, time::UNIX_EPOCH, net::TcpListener};
+use std::{sync::Arc, time::{UNIX_EPOCH, Duration}, net::TcpListener};
 use arc_swap::ArcSwap;
 use clap::Arg;
 use ddcore_rs::models::StatsBlockWithFrames;
@@ -94,6 +94,14 @@ pub async fn init() {
         let _ = state.load().msg_bus.0.send(Message::PlayReplayLocalFile(repl));
     }
 
+    let exit_recv = state.load().msg_bus.0.clone();
+    std::thread::spawn(move || {
+        ctrlc::set_handler(move || {
+            let _ = exit_recv.send(Message::Exit);
+            std::thread::sleep(Duration::from_secs(3));
+        }).expect("Error setting Ctrl-C handler");
+    });
+
     loop {
         tokio::select! {
             msg = bus_recv.recv() => match msg {
@@ -117,6 +125,7 @@ pub async fn init() {
                 },
                 Ok(Message::Exit) => { 
                     log::info!("SAVING CFG: {:?}", crate::config::try_save_with_backup());
+                    log::info!("SAVING RECENT GAMES: {:?}", crate::config::try_save_cache_with_backup());
                     log::info!("EXIT"); 
                     break; 
                 },

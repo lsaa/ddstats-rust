@@ -47,8 +47,7 @@ impl WebsocketServer {
 
             let health_check = warp::path("health-check").map(|| "Server OK".to_string());
 
-            let ws = warp::path::end()
-                .and(warp::ws())
+            let ws = warp::path::end() .and(warp::ws())
                 .and(with_state_data(state.clone()))
                 .map(|ws: warp::ws::Ws, state| {
                     log::info!("upgrading connection to websocket");
@@ -246,6 +245,14 @@ async fn handle_websocket_message(
         }
     }
 
+    if msg._type.eq("get_saved_games") {
+        let t = json!({
+            "type": "saved_games_ok",
+            "data": serde_json::to_string(crate::config::saved_data().as_ref()).unwrap()
+        }).to_string();
+        let _ = sender.send(Message::text(t)).await;
+    }
+
     if msg._type.eq("set-modules") {
         let modules: Result<Vec<GameDataModules>, serde_json::Error> = serde_json::from_str(&msg.data.to_string());
         match modules {
@@ -391,7 +398,7 @@ fn sse_miniblock(miniblock: MiniBlock, data: Arc<StatsBlockWithFrames>) -> Resul
     let sn = &LAST_SNOWFLAKE;
     let v = sn.load(std::sync::atomic::Ordering::Relaxed);
     let mut extra = None;
-    if v != miniblock.snowflake as u64 {
+    if v != miniblock.snowflake as u64 && v as u128 + 200 > miniblock.snowflake {
         sn.store(miniblock.snowflake as u64, std::sync::atomic::Ordering::Release);
         let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() - miniblock.snowflake;
         if t < Duration::from_secs(20).as_millis() {

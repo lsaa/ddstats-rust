@@ -47,7 +47,7 @@ ddstats-rust config
     On linux it just pulls from your terminal colors, probably in .Xdefaults
 */
 
-DDStatsRustConfig_v1_0_0((
+DDStatsRustConfig_v5_0_0((
     offline: false,
     debug_logs: true,
     host: "https://ddstats.com",
@@ -61,6 +61,9 @@ DDStatsRustConfig_v1_0_0((
     upload_replays_automatically: true,
     tray_icon: true,
     hide_window_on_start: false,
+    saved_games_max: 50,
+    record_threshold: 350.0,
+    auto_updater: true,
     stream: (
         stats: true,
         replay_stats: true,
